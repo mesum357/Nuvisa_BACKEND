@@ -16,7 +16,9 @@ export enum VisaApplicationStepType {
   BASIC_DETAILS = "basicDetails",
   VISIT_DETAILS = "visitDetails",
   DOCUMENTS = "documents",
+  APPOINTMENT = "appointment",
   INSURANCE = "insurance",
+  PAYMENT = "payment",
 }
 
 // Basic Details DTO for each traveler
@@ -78,10 +80,22 @@ export class TravelerBasicDetailsDto {
   pincode?: string;
 
   @IsOptional()
+  @IsString()
+  mobileNumber?: string;
+
+  @IsOptional()
   passportFront?: any;
 
   @IsOptional()
   passportBack?: any;
+
+  @IsOptional()
+  @IsString()
+  travelStartDate?: string;
+
+  @IsOptional()
+  @IsString()
+  travelEndDate?: string;
 }
 
 // Visit Details DTO for each traveler
@@ -197,6 +211,57 @@ export class TravelerInsuranceDto {
 
   @IsOptional()
   insuranceDetails?: any;
+
+  @IsOptional()
+  insuranceCertificate?: any; // For uploaded insurance certificates
+}
+
+// Payment DTO for each traveler
+export class TravelerPaymentDto {
+  @IsOptional()
+  @IsNumber()
+  appointmentFees?: number;
+
+  @IsOptional()
+  @IsNumber()
+  teleportFee?: number;
+
+  @IsOptional()
+  @IsNumber()
+  cgst?: number;
+
+  @IsOptional()
+  @IsNumber()
+  sgst?: number;
+
+  @IsOptional()
+  @IsNumber()
+  grandTotal?: number;
+
+  @IsOptional()
+  @IsString()
+  paymentStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
+
+  @IsOptional()
+  @IsNumber()
+  discountAmount?: number;
+}
+
+// Appointment DTO for each traveler
+export class TravelerAppointmentDto {
+  @IsOptional()
+  preference1?: any;
+
+  @IsOptional()
+  preference2?: any;
 }
 
 // Complete traveler data DTO
@@ -224,6 +289,16 @@ export class TravelerDataDto {
   @ValidateNested()
   @Type(() => TravelerInsuranceDto)
   insurance?: TravelerInsuranceDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TravelerAppointmentDto)
+  appointment?: TravelerAppointmentDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TravelerPaymentDto)
+  payment?: TravelerPaymentDto;
 
   @IsOptional()
   @IsArray()
@@ -285,6 +360,9 @@ export class VisaApplicationDto {
 
   @IsOptional()
   insuranceCertificate?: any; // For uploaded insurance certificates
+
+  @IsOptional()
+  appointment?: any; // For appointment data (preference1, preference2, etc.)
 
   // Traveler management fields
   @IsOptional()

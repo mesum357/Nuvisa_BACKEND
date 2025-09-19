@@ -116,6 +116,7 @@ export class VisaApplicationService {
                 state: "",
                 city: "",
                 pincode: "",
+                mobileNumber: "",
                 passportFront: null,
                 passportBack: null,
               },
@@ -273,6 +274,7 @@ export class VisaApplicationService {
               state: "",
               city: "",
               pincode: "",
+              mobileNumber: "",
               passportFront: null,
               passportBack: null,
             },
@@ -398,6 +400,115 @@ export class VisaApplicationService {
       if (dto.type === VisaApplicationStepType.CREATE_APPLICATION) {
         // Process travelers data to set insurance based on application-level insurance selection
         let processedTravelersData = dto.travelersData;
+
+        // If travelersData is not provided or is null, initialize with default structure
+        if (!processedTravelersData) {
+          console.log(
+            "No travelersData provided, initializing with default structure"
+          );
+          const numberOfTravelers = dto.numberOfTravellers || 1;
+          processedTravelersData = [];
+
+          for (let i = 1; i <= numberOfTravelers; i++) {
+            processedTravelersData.push({
+              id: i,
+              // Appointment Details
+              appointment: {
+                preference1: {
+                  city: "",
+                  dateRangeStart: null,
+                  dateRangeEnd: null,
+                  slot: "",
+                },
+                preference2: {
+                  city: "",
+                  dateRangeStart: null,
+                  dateRangeEnd: null,
+                  slot: "",
+                },
+              },
+              // Basic Details (Passport Information)
+              basicDetails: {
+                passportNumber: "",
+                firstName: "",
+                lastName: "",
+                sex: "",
+                dateOfBirth: "",
+                placeOfBirth: "",
+                passportIssuePlace: "",
+                passportIssueDate: "",
+                passportExpiryDate: "",
+                currentAddress1: "",
+                currentAddress2: "",
+                state: "",
+                city: "",
+                pincode: "",
+                mobileNumber: "",
+                passportFront: null,
+                passportBack: null,
+                travelStartDate: "",
+                travelEndDate: "",
+              },
+              // Visit Details
+              visitDetails: {
+                // Travel Information (always present in current form)
+                visitingOtherSchengenCountries: [],
+                firstCountryOfEntry: "",
+
+                // Visa History (always present in current form)
+                hasSchengenVisa: "",
+                lastVisaStartDate: "",
+                lastVisaEndDate: "",
+                hasDigitalFingerprints: "",
+                previousVisaNumber: "",
+
+                // Personal Information (always present in current form)
+                maritalStatus: "",
+                partnerFullName: "",
+                partnerDateOfBirth: "",
+
+                // Employment Information (always present in current form)
+                employmentStatus: "",
+                institutionName: "",
+                instituteEmail: "",
+                instituteAddress: "",
+                employerPhone: "",
+                employerName: "",
+                employerEmail: "",
+                employerAddress: "",
+                otherEmploymentStatus: "",
+
+                // Payment Information (always present in current form)
+                willAnyonePayForVisit: "",
+                fundingPersonName: "",
+                tripFundedBy: "",
+              },
+              // Documents
+              documents: {
+                documents: {},
+              },
+              // Insurance
+              insurance: {
+                insurance: "",
+                insuranceDetails: null,
+                insuranceCertificate: null,
+              },
+              // Payment
+              payment: {
+                appointmentFees: 2060,
+                teleportFee: 1524.6,
+                cgst: 137.2,
+                sgst: 137.2,
+                grandTotal: 3859,
+                paymentStatus: "pending",
+                paymentMethod: "",
+                couponCode: "",
+                discountAmount: 0,
+              },
+            });
+          }
+        }
+
         if (dto.travelersData && dto.insurance) {
           processedTravelersData = dto.travelersData.map((traveler, index) => {
             // Set insurance for initial travelers based on application insurance selection
@@ -564,6 +675,7 @@ export class VisaApplicationService {
             VisaApplicationStepType.BASIC_DETAILS,
             VisaApplicationStepType.VISIT_DETAILS,
             VisaApplicationStepType.DOCUMENTS,
+            VisaApplicationStepType.APPOINTMENT,
           ];
 
           // Add insurance step for ALL travelers - no more application-level insurance
@@ -636,6 +748,41 @@ export class VisaApplicationService {
           );
           console.log("dto.currentTravelerIndex:", dto.currentTravelerIndex);
 
+          // If frontend sent only basicDetails (not full travelersData), merge those
+          // into the existing travelersData entry for the current traveler index.
+          const incomingBasic = (dto as any).basicDetails;
+          if (incomingBasic && typeof dto.currentTravelerIndex === "number") {
+            console.log(
+              "Merging incoming basicDetails into existing traveler entry"
+            );
+            try {
+              if (travelersData[dto.currentTravelerIndex]) {
+                travelersData[dto.currentTravelerIndex].basicDetails = {
+                  ...(travelersData[dto.currentTravelerIndex].basicDetails ||
+                    {}),
+                  ...incomingBasic,
+                };
+                console.log(
+                  "Merged basicDetails for traveler",
+                  dto.currentTravelerIndex,
+                  JSON.stringify({
+                    mobileNumber:
+                      travelersData[dto.currentTravelerIndex].basicDetails
+                        .mobileNumber,
+                    travelStartDate:
+                      travelersData[dto.currentTravelerIndex].basicDetails
+                        .travelStartDate,
+                    travelEndDate:
+                      travelersData[dto.currentTravelerIndex].basicDetails
+                        .travelEndDate,
+                  })
+                );
+              }
+            } catch (err) {
+              console.error("Error while merging basicDetails:", err);
+            }
+          }
+
           // Use updated travelers data or merge with existing data
           if (dto.travelersData && Array.isArray(dto.travelersData)) {
             console.log(
@@ -698,6 +845,105 @@ export class VisaApplicationService {
           }
         }
 
+        if (dto.type === VisaApplicationStepType.APPOINTMENT) {
+          console.log("=== APPOINTMENT STEP HANDLER TRIGGERED ===");
+          console.log("dto.currentTravelerIndex:", dto.currentTravelerIndex);
+          console.log("dto.appointment exists:", !!(dto as any).appointment);
+          console.log(
+            "dto.appointment:",
+            JSON.stringify((dto as any).appointment, null, 2)
+          );
+          console.log(
+            "dto.travelersData length:",
+            dto.travelersData?.length || "no travelersData"
+          );
+          console.log(
+            "travelersData length:",
+            travelersData?.length || "no travelersData"
+          );
+
+          // Handle appointment step - merge incoming appointment data into the current traveler
+          const incomingAppointment = (dto as any).appointment;
+
+          if (incomingAppointment && dto.currentTravelerIndex !== undefined) {
+            console.log("=== MERGING APPOINTMENT DATA ===");
+            console.log(
+              "travelersData[dto.currentTravelerIndex] exists:",
+              !!travelersData[dto.currentTravelerIndex]
+            );
+            if (travelersData[dto.currentTravelerIndex]) {
+              console.log(
+                "Current traveler appointment before merge:",
+                JSON.stringify(
+                  travelersData[dto.currentTravelerIndex].appointment,
+                  null,
+                  2
+                )
+              );
+            }
+
+            try {
+              if (travelersData[dto.currentTravelerIndex]) {
+                travelersData[dto.currentTravelerIndex].appointment = {
+                  ...(travelersData[dto.currentTravelerIndex].appointment ||
+                    {}),
+                  ...incomingAppointment,
+                };
+
+                console.log(
+                  `Merged appointment for traveler ${dto.currentTravelerIndex}:`,
+                  JSON.stringify(
+                    travelersData[dto.currentTravelerIndex].appointment
+                  )
+                );
+              }
+            } catch (err) {
+              console.error("Error while merging appointment:", err);
+            }
+          } else {
+            console.log("=== APPOINTMENT MERGE SKIPPED ===");
+            console.log("incomingAppointment:", !!incomingAppointment);
+            console.log("dto.currentTravelerIndex:", dto.currentTravelerIndex);
+          }
+
+          // Use updated travelers data or merge with existing data
+          if (dto.travelersData && Array.isArray(dto.travelersData)) {
+            console.log(
+              "Storing updated travelers data from frontend (includes merged appointment)"
+            );
+            application.travelersData = JSON.stringify(dto.travelersData);
+            this.recalculateAllTravelersSteps(dto.travelersData, application);
+            this.checkAndUpdateApplicationStatusForIncompleteTravelers(
+              dto.travelersData,
+              application
+            );
+          } else if (travelersData.length > 0) {
+            // Store the updated travelers data with merged appointment
+            console.log("Storing merged travelers data with appointment");
+            application.travelersData = JSON.stringify(travelersData);
+            this.recalculateAllTravelersSteps(travelersData, application);
+            this.checkAndUpdateApplicationStatusForIncompleteTravelers(
+              travelersData,
+              application
+            );
+          }
+
+          // Update application submitted status only if all travelers are completed
+          const currentTravelersData = dto.travelersData || travelersData;
+          if (
+            this.areAllTravelersCompleted(currentTravelersData, application)
+          ) {
+            application.applicationStatus = "submitted";
+            console.log(
+              "All travelers completed after appointment - setting application status to submitted"
+            );
+          } else {
+            console.log(
+              "Not all travelers completed after appointment - keeping status as is"
+            );
+          }
+        }
+
         if (dto.type === VisaApplicationStepType.DOCUMENTS) {
           // Use updated travelers data or store the merged data with step tracking
           if (dto.travelersData && Array.isArray(dto.travelersData)) {
@@ -733,30 +979,11 @@ export class VisaApplicationService {
         }
 
         if (dto.type === VisaApplicationStepType.INSURANCE) {
-          console.log("=== INSURANCE STEP PROCESSING ===");
-          console.log("Payment type:", dto.paymentType);
-          console.log("Insurance value:", dto.insurance);
-          console.log("Current traveler index:", dto.currentTravelerIndex);
-          console.log("Travelers data length:", travelersData.length);
-          console.log(
-            "Traveler at index exists:",
-            !!travelersData[dto.currentTravelerIndex]
-          );
-
           // Handle traveler insurance payment (both regular and additional)
           if (
             dto.paymentType === "additional_traveler_insurance" ||
             dto.paymentType === "traveler_insurance"
           ) {
-            console.log("=== TRAVELER INSURANCE PAYMENT PROCESSING ===");
-            console.log(`Processing ${dto.paymentType} payment`);
-            console.log("dto.currentTravelerIndex:", dto.currentTravelerIndex);
-            console.log("travelersData.length:", travelersData.length);
-            console.log(
-              "Available travelers:",
-              travelersData.map((t, i) => ({ index: i, id: t.id || "no-id" }))
-            );
-
             // Update the specific traveler's insurance status after successful payment
             if (
               dto.currentTravelerIndex !== undefined &&
@@ -959,6 +1186,80 @@ export class VisaApplicationService {
           console.log("=== END INSURANCE STEP PROCESSING ===");
         }
 
+        // PAYMENT step handling: merge payment information into traveler/payment and update statuses
+        if (dto.type === VisaApplicationStepType.PAYMENT) {
+          console.log("=== PAYMENT STEP HANDLER TRIGGERED ===");
+          const incomingPayment = (dto as any).payment;
+
+          if (
+            incomingPayment &&
+            dto.currentTravelerIndex !== undefined &&
+            travelersData[dto.currentTravelerIndex]
+          ) {
+            try {
+              const currentTraveler = travelersData[dto.currentTravelerIndex];
+              if (!currentTraveler.payment) currentTraveler.payment = {};
+
+              // Merge payment info
+              currentTraveler.payment = {
+                ...currentTraveler.payment,
+                ...incomingPayment,
+              };
+
+              const status = (
+                incomingPayment.paymentStatus ||
+                currentTraveler.payment.paymentStatus ||
+                ""
+              ).toLowerCase();
+              if (
+                status === "completed" ||
+                status === "paid" ||
+                status === "success"
+              ) {
+                currentTraveler.payment.paymentStatus = "completed";
+                currentTraveler.payment.amountPaid =
+                  incomingPayment.amountPaid ||
+                  currentTraveler.payment.amountPaid;
+                currentTraveler.payment.paymentDate =
+                  incomingPayment.paymentDate || new Date().toISOString();
+                console.log(
+                  `✅ Payment recorded for traveler ${dto.currentTravelerIndex}`
+                );
+              } else if (status === "processing" || status === "pending") {
+                currentTraveler.payment.paymentStatus = "processing";
+              }
+
+              application.travelersData = JSON.stringify(travelersData);
+              this.recalculateAllTravelersSteps(travelersData, application);
+              this.checkAndUpdateApplicationStatusForIncompleteTravelers(
+                travelersData,
+                application
+              );
+
+              if (this.areAllTravelersCompleted(travelersData, application)) {
+                application.applicationStatus = "submitted";
+              }
+            } catch (err) {
+              console.error("Error processing payment step:", err);
+            }
+          } else if (dto.travelersData && Array.isArray(dto.travelersData)) {
+            application.travelersData = JSON.stringify(dto.travelersData);
+            this.recalculateAllTravelersSteps(dto.travelersData, application);
+            this.checkAndUpdateApplicationStatusForIncompleteTravelers(
+              dto.travelersData,
+              application
+            );
+
+            if (this.areAllTravelersCompleted(dto.travelersData, application)) {
+              application.applicationStatus = "submitted";
+            }
+          } else {
+            console.log(
+              "Payment step received with no traveler or travelersData to merge"
+            );
+          }
+        }
+
         await application.save();
 
         console.log("After save - Current step:", application.currentStep);
@@ -1101,6 +1402,30 @@ export class VisaApplicationService {
       console.log("=== FINAL RESPONSE DEBUG ===");
       if (parsedTravelersData && Array.isArray(parsedTravelersData)) {
         parsedTravelersData.forEach((traveler, index) => {
+          console.log(`Traveler ${index + 1} Data in Response:`);
+          console.log("- Traveler ID:", traveler.id);
+          console.log("- Has appointment:", !!traveler.appointment);
+          if (traveler.appointment) {
+            console.log(
+              "- Appointment data:",
+              JSON.stringify(traveler.appointment, null, 2)
+            );
+          } else {
+            console.log("- Appointment data: null/undefined");
+          }
+          console.log(
+            "- StepInfo completedSteps:",
+            traveler.stepInfo?.completedSteps || []
+          );
+          console.log(
+            "- StepInfo currentStep:",
+            traveler.stepInfo?.currentStep
+          );
+          console.log(
+            "- StepInfo isCompleted:",
+            traveler.stepInfo?.isCompleted
+          );
+
           if (traveler.insurance) {
             console.log(`Traveler ${index + 1} Insurance Data in Response:`);
             console.log("- Insurance selection:", traveler.insurance.insurance);
@@ -1159,6 +1484,7 @@ export class VisaApplicationService {
       VisaApplicationStepType.BASIC_DETAILS,
       VisaApplicationStepType.VISIT_DETAILS,
       VisaApplicationStepType.DOCUMENTS,
+      VisaApplicationStepType.APPOINTMENT,
     ];
 
     // Add insurance step for all applications since it's now handled at traveler level
@@ -1182,8 +1508,18 @@ export class VisaApplicationService {
     let isCompleted = false;
     let isSubmitted = false;
 
-    // Since insurance is now handled at traveler level, application is completed when all travelers are completed
-    isCompleted = completedSteps.includes(VisaApplicationStepType.INSURANCE);
+    // Since insurance and appointment are handled at traveler level, application is completed when all travelers are completed
+    // If travelersData is available, rely on recalculation to determine completion
+    let travelersData: any[] = [];
+    try {
+      travelersData = application.travelersData
+        ? JSON.parse(application.travelersData)
+        : [];
+    } catch (err) {
+      travelersData = [];
+    }
+
+    isCompleted = this.areAllTravelersCompleted(travelersData, application);
     isSubmitted = application.applicationStatus === "submitted";
 
     return {
@@ -1200,6 +1536,8 @@ export class VisaApplicationService {
         [VisaApplicationStepType.BASIC_DETAILS]: "Basic Details",
         [VisaApplicationStepType.VISIT_DETAILS]: "Visit Details",
         [VisaApplicationStepType.DOCUMENTS]: "Documents Upload",
+        [VisaApplicationStepType.APPOINTMENT]: "Appointment",
+        [VisaApplicationStepType.PAYMENT]: "Payment",
         [VisaApplicationStepType.INSURANCE]: "Insurance",
       },
     };
@@ -1218,6 +1556,9 @@ export class VisaApplicationService {
       VisaApplicationStepType.BASIC_DETAILS,
       VisaApplicationStepType.VISIT_DETAILS,
       VisaApplicationStepType.DOCUMENTS,
+      // Appointment step is required in the traveler flow
+      VisaApplicationStepType.APPOINTMENT,
+      VisaApplicationStepType.PAYMENT, // Add payment step
     ];
 
     // Determine if this traveler needs insurance step
@@ -1299,11 +1640,12 @@ export class VisaApplicationService {
 
     // Calculate step progress based on completed steps
     const stepProgressMap = {
-      [VisaApplicationStepType.CREATE_APPLICATION]: 20,
-      [VisaApplicationStepType.BASIC_DETAILS]: 40,
-      [VisaApplicationStepType.VISIT_DETAILS]: 60,
-      [VisaApplicationStepType.DOCUMENTS]: 80,
-      [VisaApplicationStepType.INSURANCE]: 100,
+      [VisaApplicationStepType.CREATE_APPLICATION]: 16,
+      [VisaApplicationStepType.BASIC_DETAILS]: 33,
+      [VisaApplicationStepType.VISIT_DETAILS]: 50,
+      [VisaApplicationStepType.DOCUMENTS]: 66,
+      [VisaApplicationStepType.APPOINTMENT]: 83,
+      [VisaApplicationStepType.PAYMENT]: 100, // Add payment step progress
     };
 
     // If this traveler has insurance and doesn't need insurance step, documents = 100%
@@ -1326,8 +1668,11 @@ export class VisaApplicationService {
       // If insurance step is required, traveler must complete it
       isCompleted = completedSteps.includes(VisaApplicationStepType.INSURANCE);
     } else {
-      // If insurance is already handled at traveler level, completed when documents step is done
-      isCompleted = completedSteps.includes(VisaApplicationStepType.DOCUMENTS);
+      // If insurance is already handled at traveler level, traveler must complete documents, appointment, AND payment
+      isCompleted =
+        completedSteps.includes(VisaApplicationStepType.DOCUMENTS) &&
+        completedSteps.includes(VisaApplicationStepType.APPOINTMENT) &&
+        completedSteps.includes(VisaApplicationStepType.PAYMENT); // Add payment requirement
     }
 
     // Set current step to "completed" for frontend display if traveler is actually completed
@@ -1351,6 +1696,8 @@ export class VisaApplicationService {
         [VisaApplicationStepType.BASIC_DETAILS]: "Basic Details",
         [VisaApplicationStepType.VISIT_DETAILS]: "Visit Details",
         [VisaApplicationStepType.DOCUMENTS]: "Documents Upload",
+        [VisaApplicationStepType.APPOINTMENT]: "Appointment",
+        [VisaApplicationStepType.PAYMENT]: "Payment",
         [VisaApplicationStepType.INSURANCE]: "Insurance",
       },
     };
@@ -1390,6 +1737,22 @@ export class VisaApplicationService {
       console.log("Documents is NOT complete");
     }
 
+    // Check Appointment completion
+    if (this.isAppointmentComplete(travelerData.appointment)) {
+      completedSteps.push(VisaApplicationStepType.APPOINTMENT);
+      console.log("Appointment is complete - added to completedSteps");
+    } else {
+      console.log("Appointment is NOT complete - NOT added to completedSteps");
+    }
+
+    // Check Payment completion
+    if (this.isPaymentComplete(travelerData.payment)) {
+      completedSteps.push(VisaApplicationStepType.PAYMENT);
+      console.log("Payment is complete - added to completedSteps");
+    } else {
+      console.log("Payment is NOT complete - NOT added to completedSteps");
+    }
+
     // Check Insurance completion (if required)
     if (this.isInsuranceComplete(travelerData.insurance)) {
       completedSteps.push(VisaApplicationStepType.INSURANCE);
@@ -1402,6 +1765,61 @@ export class VisaApplicationService {
     console.log("=== END CALCULATING COMPLETED STEPS ===");
 
     return completedSteps;
+  }
+
+  // Helper to validate appointment completeness
+  private isAppointmentComplete(appointment: any): boolean {
+    console.log("=== CHECKING APPOINTMENT COMPLETENESS ===");
+    console.log("Appointment data:", JSON.stringify(appointment, null, 2));
+
+    if (!appointment) {
+      console.log("Appointment validation failed: no appointment object");
+      return false;
+    }
+
+    // Expect at least preference1 to have city + slot or dateRange
+    const pref1 = appointment.preference1 || {};
+    const hasCity = !!(pref1.city && pref1.city.trim());
+    const hasSlot = !!(pref1.slot && pref1.slot.trim());
+    const hasDateRange = !!(pref1.dateRange && pref1.dateRange.trim());
+
+    console.log("Appointment validation details:");
+    console.log("- Has city:", hasCity, "(value:", pref1.city, ")");
+    console.log("- Has slot:", hasSlot, "(value:", pref1.slot, ")");
+    console.log(
+      "- Has dateRange:",
+      hasDateRange,
+      "(value:",
+      pref1.dateRange,
+      ")"
+    );
+    console.log("- Overall complete:", hasCity && (hasSlot || hasDateRange));
+
+    console.log("=== END APPOINTMENT COMPLETENESS CHECK ===");
+    return hasCity && (hasSlot || hasDateRange);
+  }
+
+  // Helper to validate payment completeness
+  private isPaymentComplete(payment: any): boolean {
+    console.log("=== CHECKING PAYMENT COMPLETENESS ===");
+    console.log("Payment data:", JSON.stringify(payment, null, 2));
+
+    if (!payment) {
+      console.log("Payment validation failed: no payment object");
+      return false;
+    }
+
+    // Check if payment status is completed
+    const paymentStatus = payment.paymentStatus;
+    const isCompleted =
+      paymentStatus === "completed" || paymentStatus === "paid";
+
+    console.log("Payment validation details:");
+    console.log("- Payment status:", paymentStatus);
+    console.log("- Is completed:", isCompleted);
+
+    console.log("=== END PAYMENT COMPLETENESS CHECK ===");
+    return isCompleted;
   }
 
   // Validation methods for each step
@@ -1419,9 +1837,9 @@ export class VisaApplicationService {
       basicDetails.passportIssueDate &&
       basicDetails.passportExpiryDate &&
       basicDetails.currentAddress1 &&
-      basicDetails.state &&
       basicDetails.city &&
       basicDetails.pincode &&
+      basicDetails.mobileNumber &&
       basicDetails.passportFront &&
       basicDetails.passportBack
     );
@@ -1549,25 +1967,21 @@ export class VisaApplicationService {
   private isInsuranceComplete(insurance: any): boolean {
     if (!insurance) return false;
 
-    const insuranceValue = insurance.insurance;
-
-    // Check if insurance is completed
-    if (insuranceValue === "true") {
-      // Paid insurance is always complete
+    if (
+      insurance.insuranceCertificate !== null &&
+      insurance.insuranceCertificate !== undefined
+    ) {
       return true;
     }
 
-    if (insuranceValue === "own") {
-      // Own insurance is complete if:
-      // 1. Certificate is uploaded in insuranceCertificate field, OR
-      // 2. insuranceDetails indicates certificate was uploaded
-      const hasCertificate = !!insurance.insuranceCertificate;
-      const hasDetailsFlag = !!insurance.insuranceDetails?.certificateUploaded;
+    const insuranceValue = insurance.insurance;
 
-      return hasCertificate || hasDetailsFlag;
+    if (insuranceValue === "own") {
+      // Own insurance is complete if the insuranceDetails flag indicates certificate uploaded
+      const hasDetailsFlag = !!insurance.insuranceDetails?.certificateUploaded;
+      return hasDetailsFlag;
     }
 
-    // Any other value (including "false" or empty) is not complete
     return false;
   }
 
@@ -1655,6 +2069,7 @@ export class VisaApplicationService {
           }
         }
       }
+
       // For initial travelers, check insurance with backward compatibility
       else {
         // Check traveler-level insurance first
@@ -1749,6 +2164,8 @@ export class VisaApplicationService {
         VisaApplicationStepType.BASIC_DETAILS,
         VisaApplicationStepType.VISIT_DETAILS,
         VisaApplicationStepType.DOCUMENTS,
+        VisaApplicationStepType.APPOINTMENT, // Add appointment step
+        VisaApplicationStepType.PAYMENT, // Add payment step
       ];
 
       // Check if this traveler has insurance at traveler level
@@ -1793,22 +2210,16 @@ export class VisaApplicationService {
           VisaApplicationStepType.INSURANCE
         );
       } else {
-        // If insurance is already handled (traveler level or backward compatibility), completed when documents step is done
-        isCompleted = allCompletedSteps.includes(
-          VisaApplicationStepType.DOCUMENTS
-        );
+        // If insurance is already handled (traveler level or backward compatibility),
+        // traveler must complete documents, appointment, AND payment steps
+        isCompleted =
+          allCompletedSteps.includes(VisaApplicationStepType.DOCUMENTS) &&
+          allCompletedSteps.includes(VisaApplicationStepType.APPOINTMENT) &&
+          allCompletedSteps.includes(VisaApplicationStepType.PAYMENT);
       }
 
       // Update stepInfo with calculated values (no more redundant fields)
       currentStepInfo.completedSteps = allCompletedSteps;
-      currentStepInfo.currentStep = nextStep || currentStepInfo.currentStep;
-      currentStepInfo.nextStep = nextStep;
-      currentStepInfo.isCompleted = isCompleted;
-      currentStepInfo.stepProgress =
-        (allCompletedSteps.length / allSteps.length) * 100;
-      currentStepInfo.isAdditionalTraveler = isAdditionalTraveler;
-      currentStepInfo.requiresInsurance = needsInsuranceStep;
-      currentStepInfo.hasInsurance = effectivelyHasInsurance;
       currentStepInfo.currentStep = nextStep || currentStepInfo.currentStep;
       currentStepInfo.nextStep = nextStep;
       currentStepInfo.isCompleted = isCompleted;
