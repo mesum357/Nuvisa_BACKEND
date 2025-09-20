@@ -23,8 +23,18 @@ export const GetObjectTemplateForAPIResponseGeneral =
     if (data) {
       ObjectTemplateForAPIResponseGeneral.data.results =
         data;
-      ObjectTemplateForAPIResponseGeneral.data.recordsCount =
-        data.length;
+      try {
+        if (Array.isArray(data)) {
+          ObjectTemplateForAPIResponseGeneral.data.recordsCount = data.length;
+        } else if (data?.applications && Array.isArray(data.applications)) {
+          ObjectTemplateForAPIResponseGeneral.data.recordsCount = data.applications.length;
+        } else if (data?.documents && Array.isArray(data.documents)) {
+          ObjectTemplateForAPIResponseGeneral.data.recordsCount = data.documents.length;
+        } else if (typeof data === 'object') {
+          ObjectTemplateForAPIResponseGeneral.data.recordsCount = Object.keys(data).length;
+        }
+      } catch {
+      }
     }
     if (message)
       ObjectTemplateForAPIResponseGeneral.message =
