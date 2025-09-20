@@ -518,10 +518,10 @@ export class VisaApplicationService {
                 ...traveler,
                 insurance: {
                   ...traveler.insurance,
-                  insurance: dto.insurance, // Apply application-level insurance to initial travelers
+                  insurance: dto.insurance, // Simple: directly use the checkbox value from frontend
                   insuranceDetails:
                     dto.insurance === "true"
-                      ? traveler.insurance?.insuranceDetails
+                      ? { selected: true }
                       : null,
                 },
               };
@@ -998,21 +998,37 @@ export class VisaApplicationService {
               if (!currentTraveler.insurance) {
                 currentTraveler.insurance = {};
               }
-              currentTraveler.insurance.insurance = "true"; // Insurance paid and active
-              currentTraveler.insurance.insuranceDetails = {
-                selected: true,
-                paid: true,
-                paymentType: dto.paymentType,
-                amountPaid: dto.amountPaid || "2500",
-              };
 
-              console.log(
-                "Current traveler after update:",
-                JSON.stringify(currentTraveler.insurance, null, 2)
-              );
-              console.log(
-                `✅ Successfully updated insurance for traveler ${dto.currentTravelerIndex + 1}: paid`
-              );
+              // SIMPLE LOGIC: If payment completed, mark insurance as true
+              if (dto.insurancePaymentCompleted === true) {
+                currentTraveler.insurance.insurance = "true"; // Insurance paid and active
+                currentTraveler.insurance.insurancePaymentCompleted = true;
+                
+                // Store payment metadata if available
+                if (dto.orderId) {
+                  currentTraveler.insurance.orderId = dto.orderId;
+                }
+                if (dto.paymentDate) {
+                  currentTraveler.insurance.paymentDate = dto.paymentDate;
+                }
+                if (dto.amountPaid) {
+                  currentTraveler.insurance.paymentAmount = Number(dto.amountPaid);
+                }
+
+                currentTraveler.insurance.insuranceDetails = {
+                  selected: true,
+                  paid: true,
+                  paymentType: dto.paymentType,
+                };
+
+                console.log(
+                  `✅ Successfully updated insurance for traveler ${dto.currentTravelerIndex + 1}: paid`
+                );
+              } else {
+                console.log(
+                  `⚠️ Insurance payment not completed for traveler ${dto.currentTravelerIndex}. NOT marking as active.`
+                );
+              }
 
               // Update the travelers data in the application
               application.travelersData = JSON.stringify(travelersData);
@@ -1041,7 +1057,7 @@ export class VisaApplicationService {
             }
           } else {
             // Regular insurance step handling (non-payment flow)
-            // Use updated travelers data or store the merged data with step tracking
+            // SIMPLE LOGIC: Just use the insurance value from frontend directly
             if (dto.travelersData && Array.isArray(dto.travelersData)) {
               console.log("=== PROCESSING TRAVELERS DATA FOR INSURANCE ===");
               console.log(
@@ -1050,10 +1066,10 @@ export class VisaApplicationService {
               );
               console.log("Current traveler index:", dto.currentTravelerIndex);
 
-              // If we have travelers data from frontend, use it directly (it contains the complete insurance data)
+              // Use the travelers data from frontend directly - it contains the user's insurance choice
               application.travelersData = JSON.stringify(dto.travelersData);
               console.log(
-                "✅ Stored complete travelers data from frontend (includes insurance certificate)"
+                "✅ Stored complete travelers data from frontend (includes user's insurance choice)"
               );
 
               this.recalculateAllTravelersSteps(dto.travelersData, application);
@@ -1065,8 +1081,7 @@ export class VisaApplicationService {
               // Fallback: merge with existing data
               console.log("=== FALLBACK: MERGING WITH EXISTING DATA ===");
 
-              // Store insurance at traveler level (dto.insurance should contain the traveler's insurance choice)
-              // The insurance is now handled per traveler, not at application level
+              // Simple merge: just set the insurance value directly from DTO
               if (
                 dto.currentTravelerIndex !== undefined &&
                 travelersData[dto.currentTravelerIndex]
@@ -1076,73 +1091,21 @@ export class VisaApplicationService {
                   currentTraveler.insurance = {};
                 }
 
-                console.log("=== INSURANCE DATA MERGE DEBUG (FALLBACK) ===");
-                console.log("dto.insurance:", dto.insurance);
-                console.log("dto.insuranceDetails:", dto.insuranceDetails);
-                console.log(
-                  "dto.insuranceCertificate exists:",
-                  !!dto.insuranceCertificate
-                );
-                console.log(
-                  "Current traveler insurance before merge:",
-                  JSON.stringify(currentTraveler.insurance, null, 2)
-                );
-
-                // Properly merge the complete insurance data instead of just the insurance selection
-                currentTraveler.insurance.insurance = dto.insurance;
+                // SIMPLE: Use the insurance value from frontend directly
+                currentTraveler.insurance.insurance = dto.insurance || "false";
 
                 // Merge insurance details if provided
                 if (dto.insuranceDetails) {
-                  currentTraveler.insurance.insuranceDetails =
-                    dto.insuranceDetails;
-                  console.log(
-                    "✅ Merged insuranceDetails:",
-                    dto.insuranceDetails
-                  );
+                  currentTraveler.insurance.insuranceDetails = dto.insuranceDetails;
                 }
 
                 // Merge insurance certificate if provided
                 if (dto.insuranceCertificate) {
-                  currentTraveler.insurance.insuranceCertificate =
-                    dto.insuranceCertificate;
-                  console.log("✅ Merged insuranceCertificate:", {
-                    name: dto.insuranceCertificate.name,
-                    type: dto.insuranceCertificate.type,
-                    size: dto.insuranceCertificate.size,
-                    hasData: !!dto.insuranceCertificate.data,
-                  });
+                  currentTraveler.insurance.insuranceCertificate = dto.insuranceCertificate;
                 }
 
                 console.log(
-                  "Current traveler insurance after merge:",
-                  JSON.stringify(
-                    {
-                      ...currentTraveler.insurance,
-                      insuranceCertificate: currentTraveler.insurance
-                        .insuranceCertificate
-                        ? {
-                            name: currentTraveler.insurance.insuranceCertificate
-                              .name,
-                            type: currentTraveler.insurance.insuranceCertificate
-                              .type,
-                            size: currentTraveler.insurance.insuranceCertificate
-                              .size,
-                            hasData:
-                              !!currentTraveler.insurance.insuranceCertificate
-                                .data,
-                          }
-                        : undefined,
-                    },
-                    null,
-                    2
-                  )
-                );
-                console.log(
-                  "=== END INSURANCE DATA MERGE DEBUG (FALLBACK) ==="
-                );
-
-                console.log(
-                  `✅ Stored complete insurance data for traveler ${dto.currentTravelerIndex + 1}: ${dto.insurance}`
+                  `✅ Stored insurance data for traveler ${dto.currentTravelerIndex + 1}: ${dto.insurance}`
                 );
               }
 
@@ -1197,6 +1160,7 @@ export class VisaApplicationService {
             travelersData[dto.currentTravelerIndex]
           ) {
             try {
+
               const currentTraveler = travelersData[dto.currentTravelerIndex];
               if (!currentTraveler.payment) currentTraveler.payment = {};
 
@@ -1205,6 +1169,68 @@ export class VisaApplicationService {
                 ...currentTraveler.payment,
                 ...incomingPayment,
               };
+
+              // If insurance purchase metadata was sent alongside payment (merged by frontend),
+              // merge it into traveler.insurance so DB stores orderId/paymentAmount/paymentDate
+              try {
+                // Merge any insurance fields that came with the payment
+                // Merge common DTO fields if present (frontend may populate these)
+                if (dto.insurance) {
+                  if (!currentTraveler.insurance) currentTraveler.insurance = {};
+                  // dto.insurance may be 'purchase'/'own' etc.
+                  currentTraveler.insurance.insurance = dto.insurance;
+                }
+
+                if (dto.insuranceDetails) {
+                  if (!currentTraveler.insurance) currentTraveler.insurance = {};
+                  currentTraveler.insurance.insuranceDetails = {
+                    ...(currentTraveler.insurance.insuranceDetails || {}),
+                    ...dto.insuranceDetails,
+                  };
+                }
+
+                if (dto.orderId) {
+                  if (!currentTraveler.insurance) currentTraveler.insurance = {};
+                  currentTraveler.insurance.orderId = dto.orderId;
+                }
+
+                if (dto.amountPaid !== undefined) {
+                  if (!currentTraveler.insurance) currentTraveler.insurance = {};
+                  currentTraveler.insurance.paymentAmount = Number(dto.amountPaid);
+                }
+
+                // If traveler.insurance indicates purchase, validate the amount
+                if (
+                  currentTraveler.insurance &&
+                  currentTraveler.insurance.insurance === "purchase"
+                ) {
+                  // Prefer explicit insurance.paymentAmount, else fallback to payment.amountPaid or payment.amount
+                  const numericInsurancePaid =
+                    Number(currentTraveler.insurance.paymentAmount) ||
+                    Number(incomingPayment.amountPaid) ||
+                    Number(incomingPayment.amount) ||
+                    null;
+
+                  if (numericInsurancePaid) {
+                    currentTraveler.insurance.paymentAmount = numericInsurancePaid;
+                  }
+
+                  // Validate insurance payment amount now
+                  const insuranceValid = this.validateInsurancePaymentAmount(
+                    currentTraveler,
+                    application
+                  );
+
+                  if (!insuranceValid) {
+                    console.error(
+                      `Insurance payment validation failed for traveler ${dto.currentTravelerIndex} during PAYMENT step`
+                    );
+                    callHTTPException("Insurance payment amount is invalid");
+                  }
+                }
+              } catch (err) {
+                console.error("Error validating insurance payment during PAYMENT step:", err);
+              }
 
               const status = (
                 incomingPayment.paymentStatus ||
@@ -1568,13 +1594,28 @@ export class VisaApplicationService {
 
     // Check if this traveler has insurance at traveler level ONLY
     const travelerInsurance = travelerData.insurance;
-    const travelerHasInsurance =
-      travelerInsurance &&
-      travelerInsurance.insurance &&
-      (travelerInsurance.insurance === "true" ||
-        (travelerInsurance.insurance === "own" &&
-          travelerInsurance.insuranceCertificate &&
-          travelerInsurance.insuranceDetails?.certificateUploaded));
+    
+    // Determine if traveler has complete insurance coverage
+    const travelerHasInsurance = travelerInsurance && (
+      // Has own insurance with certificate uploaded (flexible check)
+      (travelerInsurance.insurance === "own" &&
+        (travelerInsurance.insuranceCertificate || 
+         travelerInsurance.insuranceDetails?.certificateUploaded)) ||
+      // Has purchased insurance and payment is completed
+      (travelerInsurance.insurance === "purchase" &&
+        travelerInsurance.insurancePaymentCompleted === true &&
+        travelerInsurance.orderId &&
+        travelerInsurance.paymentAmount) ||
+      // Legacy format or auto-set from payment
+      travelerInsurance.insurance === "true"
+    );
+
+    console.log("Traveler insurance assessment:");
+    console.log("- Insurance type:", travelerInsurance?.insurance);
+    console.log("- Has insurance certificate:", !!travelerInsurance?.insuranceCertificate);
+    console.log("- Payment completed:", travelerInsurance?.insurancePaymentCompleted);
+    console.log("- Has order ID:", !!travelerInsurance?.orderId);
+    console.log("- Traveler has complete insurance:", travelerHasInsurance);
 
     // For backward compatibility: if traveler doesn't have insurance but application has insurance,
     // consider the traveler as having insurance (for existing applications)
@@ -1586,8 +1627,19 @@ export class VisaApplicationService {
     const effectivelyHasInsurance =
       travelerHasInsurance || hasBackwardCompatibilityInsurance;
 
-    // ALL travelers need insurance step if they don't have complete insurance coverage
-    const needsInsuranceStep = !effectivelyHasInsurance;
+    // Traveler needs insurance step if they have selected insurance but haven't completed it
+    const hasSelectedInsurance = travelerInsurance && (
+      travelerInsurance.insurance === "own" ||
+      travelerInsurance.insurance === "purchase" ||
+      travelerInsurance.insurance === "true"
+    );
+    
+    const needsInsuranceStep = hasSelectedInsurance && !effectivelyHasInsurance;
+
+    console.log("Insurance step determination:");
+    console.log("- Has selected insurance:", hasSelectedInsurance);
+    console.log("- Effectively has insurance:", effectivelyHasInsurance);
+    console.log("- Needs insurance step:", needsInsuranceStep);
 
     if (needsInsuranceStep) {
       if (!allSteps.includes(VisaApplicationStepType.INSURANCE)) {
@@ -1605,7 +1657,7 @@ export class VisaApplicationService {
 
     // Intelligently calculate completed steps based on actual traveler data
     const calculatedCompletedSteps =
-      this.calculateCompletedStepsFromData(travelerData);
+      this.calculateCompletedStepsFromData(travelerData, application);
 
     // Use calculated steps if available, otherwise fall back to stored completedSteps
     const completedSteps =
@@ -1664,16 +1716,27 @@ export class VisaApplicationService {
 
     // Determine if traveler is completed
     let isCompleted = false;
+    
+    // Base completion requirements: documents, appointment, and payment
+    const hasBasicCompletion = 
+      completedSteps.includes(VisaApplicationStepType.DOCUMENTS) &&
+      completedSteps.includes(VisaApplicationStepType.APPOINTMENT) &&
+      completedSteps.includes(VisaApplicationStepType.PAYMENT);
+    
     if (needsInsuranceStep) {
-      // If insurance step is required, traveler must complete it
-      isCompleted = completedSteps.includes(VisaApplicationStepType.INSURANCE);
+      // If insurance step is required, traveler must complete it along with basic steps
+      isCompleted = hasBasicCompletion && completedSteps.includes(VisaApplicationStepType.INSURANCE);
     } else {
-      // If insurance is already handled at traveler level, traveler must complete documents, appointment, AND payment
-      isCompleted =
-        completedSteps.includes(VisaApplicationStepType.DOCUMENTS) &&
-        completedSteps.includes(VisaApplicationStepType.APPOINTMENT) &&
-        completedSteps.includes(VisaApplicationStepType.PAYMENT); // Add payment requirement
+      // If no insurance step needed, just basic completion (including payment) is sufficient
+      isCompleted = hasBasicCompletion;
     }
+
+    console.log("Traveler completion assessment:");
+    console.log("- Has basic completion (docs + appointment + payment):", hasBasicCompletion);
+    console.log("- Needs insurance step:", needsInsuranceStep);
+    console.log("- Insurance step completed:", completedSteps.includes(VisaApplicationStepType.INSURANCE));
+    console.log("- Payment step completed:", completedSteps.includes(VisaApplicationStepType.PAYMENT));
+    console.log("- Final completion status:", isCompleted);
 
     // Set current step to "completed" for frontend display if traveler is actually completed
     let displayCurrentStep = currentStep;
@@ -1704,7 +1767,7 @@ export class VisaApplicationService {
   }
 
   // Helper method to calculate completed steps based on actual traveler data
-  private calculateCompletedStepsFromData(travelerData: any): string[] {
+  private calculateCompletedStepsFromData(travelerData: any, application?: VisaApplication): string[] {
     const completedSteps = [];
 
     console.log("=== CALCULATING COMPLETED STEPS ===");
@@ -1745,8 +1808,8 @@ export class VisaApplicationService {
       console.log("Appointment is NOT complete - NOT added to completedSteps");
     }
 
-    // Check Payment completion
-    if (this.isPaymentComplete(travelerData.payment)) {
+    // Check Payment completion (pass application and traveler data for context)
+    if (this.isPaymentComplete(travelerData.payment, application, travelerData)) {
       completedSteps.push(VisaApplicationStepType.PAYMENT);
       console.log("Payment is complete - added to completedSteps");
     } else {
@@ -1800,12 +1863,31 @@ export class VisaApplicationService {
   }
 
   // Helper to validate payment completeness
-  private isPaymentComplete(payment: any): boolean {
+  private isPaymentComplete(payment: any, application?: VisaApplication, travelerData?: any): boolean {
     console.log("=== CHECKING PAYMENT COMPLETENESS ===");
     console.log("Payment data:", JSON.stringify(payment, null, 2));
 
+    // For travelers who paid during application creation, payment is automatically complete
+    // Check if this is a regular traveler (not additional) and application has been paid for
+    if (application && travelerData) {
+      const paidTravelerCount = application.numberOfTravellers || 1;
+      const travelerIndex = travelerData.id ? parseInt(travelerData.id) - 1 : 0;
+      const isRegularTraveler = travelerIndex < paidTravelerCount;
+      
+      // If this is a regular traveler and application has an amount paid, payment is complete
+      if (isRegularTraveler && application.amountPaid && parseFloat(application.amountPaid) > 0) {
+        console.log("Regular traveler - payment completed during application creation");
+        console.log("- Traveler index:", travelerIndex);
+        console.log("- Paid traveler count:", paidTravelerCount);
+        console.log("- Application amount paid:", application.amountPaid);
+        console.log("=== END PAYMENT COMPLETENESS CHECK ===");
+        return true;
+      }
+    }
+
     if (!payment) {
       console.log("Payment validation failed: no payment object");
+      console.log("=== END PAYMENT COMPLETENESS CHECK ===");
       return false;
     }
 
@@ -1965,24 +2047,164 @@ export class VisaApplicationService {
   }
 
   private isInsuranceComplete(insurance: any): boolean {
-    if (!insurance) return false;
+    console.log("=== CHECKING INSURANCE COMPLETENESS ===");
+    console.log("Insurance data:", JSON.stringify(insurance, null, 2));
 
-    if (
-      insurance.insuranceCertificate !== null &&
-      insurance.insuranceCertificate !== undefined
-    ) {
-      return true;
+    if (!insurance) {
+      console.log("Insurance validation failed: no insurance object");
+      return false;
     }
 
     const insuranceValue = insurance.insurance;
+    console.log("Insurance type:", insuranceValue);
 
-    if (insuranceValue === "own") {
-      // Own insurance is complete if the insuranceDetails flag indicates certificate uploaded
-      const hasDetailsFlag = !!insurance.insuranceDetails?.certificateUploaded;
-      return hasDetailsFlag;
+    // SIMPLE LOGIC: Insurance is complete if it's marked as true from checkout
+    if (insuranceValue === "true" || insuranceValue === true) {
+      console.log("Insurance is marked as true - considering complete");
+      console.log("=== END INSURANCE COMPLETENESS CHECK ===");
+      return true;
     }
 
+    // AUTO-UPDATE LOGIC: If payment details exist but insurance is still "false", auto-set to "true"
+    if (insuranceValue === "false" && insurance.orderId && insurance.paymentAmount) {
+      console.log("Insurance payment completed but status is false - auto-updating to true");
+      insurance.insurance = "true"; // Auto-update the status
+      console.log("=== END INSURANCE COMPLETENESS CHECK ===");
+      return true;
+    }
+
+    // For backward compatibility: if user chose to purchase insurance through us
+    if (insuranceValue === "purchase") {
+      // Insurance is complete only if payment has been completed with valid amount
+      const paymentCompleted = insurance.insurancePaymentCompleted === true;
+      const hasOrderId = !!insurance.orderId;
+      const hasPaymentAmount = !!insurance.paymentAmount;
+      const hasPaymentDate = !!insurance.paymentDate;
+      
+      console.log("Purchase insurance validation:");
+      console.log("- Payment completed:", paymentCompleted);
+      console.log("- Has order ID:", hasOrderId);
+      console.log("- Has payment amount:", hasPaymentAmount);
+      console.log("- Has payment date:", hasPaymentDate);
+      
+      const isComplete = paymentCompleted && hasOrderId && hasPaymentAmount && hasPaymentDate;
+      
+      // Auto-update to "true" if payment is complete
+      if (isComplete) {
+        console.log("Purchase payment complete - auto-updating insurance to true");
+        insurance.insurance = "true";
+      }
+      
+      console.log("- Purchase insurance complete:", isComplete);
+      console.log("=== END INSURANCE COMPLETENESS CHECK ===");
+      return isComplete;
+    }
+
+    // For backward compatibility: if user has own insurance
+    if (insuranceValue === "own") {
+      // Own insurance is complete if certificate is uploaded OR details flag is set
+      let hasCertificate = false;
+      
+      if (insurance.insuranceCertificate) {
+        if (typeof insurance.insuranceCertificate === 'string') {
+          hasCertificate = insurance.insuranceCertificate.trim() !== "";
+        } else if (typeof insurance.insuranceCertificate === 'object' && insurance.insuranceCertificate !== null) {
+          hasCertificate = true;
+        } else {
+          hasCertificate = true;
+        }
+      }
+      
+      const hasDetailsFlag = !!insurance.insuranceDetails?.certificateUploaded;
+      
+      console.log("Own insurance validation:");
+      console.log("- Has certificate:", hasCertificate);
+      console.log("- Has details flag:", hasDetailsFlag);
+      
+      // Use OR logic - either certificate OR details flag is sufficient
+      const isComplete = hasCertificate || hasDetailsFlag;
+      
+      // Auto-update to "true" if own insurance is complete
+      if (isComplete) {
+        console.log("Own insurance complete - auto-updating insurance to true");
+        insurance.insurance = "true";
+      }
+      
+      console.log("- Own insurance complete:", isComplete);
+      console.log("=== END INSURANCE COMPLETENESS CHECK ===");
+      return isComplete;
+    }
+
+    console.log("Insurance not marked as true, purchase, or own - considering incomplete");
+    console.log("=== END INSURANCE COMPLETENESS CHECK ===");
     return false;
+  }
+
+  // Helper method to calculate insurance cost based on travel duration
+  private calculateInsuranceCost(travelerData: any, application: VisaApplication): number {
+    console.log("=== CALCULATING INSURANCE COST ===");
+    
+    // Try to get travel dates from traveler's basic details
+    const travelStartDate = travelerData?.basicDetails?.travelStartDate;
+    const travelEndDate = travelerData?.basicDetails?.travelEndDate;
+
+    console.log("Travel dates found:");
+    console.log("- Start date:", travelStartDate);
+    console.log("- End date:", travelEndDate);
+
+    if (travelStartDate && travelEndDate) {
+      try {
+        const start = new Date(travelStartDate);
+        const end = new Date(travelEndDate);
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const travelDays = Math.max(1, diffDays); // Minimum 1 day
+        const insuranceCost = travelDays * 2; // £2 per day
+        
+        console.log("Insurance cost calculation:");
+        console.log("- Travel days:", travelDays);
+        console.log("- Cost per day: £2");
+        console.log("- Total insurance cost: £" + insuranceCost);
+        console.log("=== END INSURANCE COST CALCULATION ===");
+        
+        return insuranceCost;
+      } catch (error) {
+        console.error("Error calculating travel days:", error);
+      }
+    }
+
+    // Default to 30 days if dates are not available
+    const defaultCost = 30 * 2; // £60 for 30 days
+    console.log("Using default insurance cost: £" + defaultCost + " (30 days)");
+    console.log("=== END INSURANCE COST CALCULATION ===");
+    return defaultCost;
+  }
+
+  // Helper method to validate insurance payment amount
+  private validateInsurancePaymentAmount(travelerData: any, application: VisaApplication): boolean {
+    console.log("=== VALIDATING INSURANCE PAYMENT AMOUNT ===");
+    
+    const insurance = travelerData?.insurance;
+    if (!insurance || insurance.insurance !== "purchase") {
+      console.log("Insurance payment validation skipped - not a purchase");
+      console.log("=== END INSURANCE PAYMENT VALIDATION ===");
+      return true; // Not applicable
+    }
+
+  const expectedCost = this.calculateInsuranceCost(travelerData, application);
+  const paidAmount = insurance.paymentAmount;
+
+  console.log("Payment amount validation:");
+  console.log("- Expected insurance cost: £" + expectedCost);
+  console.log("- Paid amount: £" + paidAmount);
+
+  // Allow for small rounding differences (within £1)
+  const isValidAmount = paidAmount && Math.abs(paidAmount - expectedCost) <= 1;
+    
+    console.log("- Payment amount valid:", isValidAmount);
+    console.log("=== END INSURANCE PAYMENT VALIDATION ===");
+    
+    return isValidAmount;
   }
 
   // Helper method to check if all travelers have completed their steps
@@ -2148,9 +2370,9 @@ export class VisaApplicationService {
         traveler.stepInfo ||
         this.getTravelerStepInformation(traveler, application);
 
-      // Recalculate completed steps based on actual data
+      // Recalculate completed steps based on actual data (pass application for payment context)
       const calculatedCompletedSteps =
-        this.calculateCompletedStepsFromData(traveler);
+        this.calculateCompletedStepsFromData(traveler, application);
 
       // Merge existing completed steps with calculated ones
       const existingSteps = currentStepInfo.completedSteps || [];

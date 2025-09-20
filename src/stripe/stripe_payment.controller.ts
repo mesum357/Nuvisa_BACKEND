@@ -20,6 +20,7 @@ import { callHTTPException } from "src/shared/exceptions";
 import { StripeService } from "./stripe_payment.service";
 import { checkoutSessionDto } from "./dto/stripe.dto";
 import { Request, Response } from "express";
+import { VisaApplication } from "src/applicationSteps/visa-application.entity";
 
 @Controller("stripe_payment")
 export class StripeController {
@@ -69,13 +70,58 @@ export class StripeController {
       console.log("Test payment data:", body);
       
       // Simulate the payment success data structure
+      // Ensure an orderId exists in test metadata so backend validation passes during dev
+      const mockOrderId = body.orderId || `ORD${String(Math.floor(Math.random() * 900000) + 100000)}`;
+
+      // If amount or email not provided, try to derive sensible defaults from the application
+      let derivedAmount = body.amount;
+      let derivedEmail = body.email;
+      if ((!derivedAmount || derivedAmount === "") && body.applicationId) {
+        try {
+          const app = await VisaApplication.findByPk(body.applicationId);
+          if (app) {
+            derivedEmail = derivedEmail || app.email;
+            // Try to compute expected insurance cost from travel dates for the traveler
+            if (app.travelersData) {
+              try {
+                const travelers = JSON.parse(app.travelersData || "[]");
+                const idx = parseInt(body.travelerIndex);
+                const traveler = travelers[idx];
+                if (traveler && traveler.basicDetails) {
+                  const start = traveler.basicDetails.travelStartDate
+                    ? new Date(traveler.basicDetails.travelStartDate)
+                    : null;
+                  const end = traveler.basicDetails.travelEndDate
+                    ? new Date(traveler.basicDetails.travelEndDate)
+                    : null;
+                  if (start && end && !isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                    const diffTime = Math.abs(end.getTime() - start.getTime());
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const travelDays = Math.max(1, diffDays);
+                      const insuranceCost = travelDays * 2; // £2 per day
+                      // No service fee - derived amount is base insuranceCost
+                      derivedAmount = String(insuranceCost.toFixed(2));
+                  }
+                }
+              } catch (e) {
+                // ignore parse errors; leave derivedAmount undefined
+              }
+            }
+          }
+        } catch (err) {
+          // ignore — we'll fall back to body.amount or undefined
+        }
+      }
+
       const mockPaymentData = {
         metadata: {
           paymentType: body.paymentType || "traveler_insurance",
           travelerIndex: body.travelerIndex,
           applicationId: body.applicationId,
-          email: body.email,
-          amount: body.amount
+          email: derivedEmail || body.email,
+          amount: derivedAmount || body.amount,
+          amountGBP: derivedAmount || body.amount, // include amountGBP for webhook preference
+          orderId: mockOrderId,
         }
       };
       

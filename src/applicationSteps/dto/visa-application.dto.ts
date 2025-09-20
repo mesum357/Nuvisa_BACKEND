@@ -214,6 +214,23 @@ export class TravelerInsuranceDto {
 
   @IsOptional()
   insuranceCertificate?: any; // For uploaded insurance certificates
+
+  // Insurance payment metadata fields
+  @IsOptional()
+  @IsString()
+  orderId?: string; // Order ID for insurance payment (ORD######)
+
+  @IsOptional()
+  @IsNumber()
+  paymentAmount?: number; // Amount paid for insurance (in GBP)
+
+  @IsOptional()
+  @IsString()
+  paymentDate?: string; // ISO date string when payment was made
+
+  @IsOptional()
+  @IsBoolean()
+  insurancePaymentCompleted?: boolean; // Whether insurance payment is completed
 }
 
 // Payment DTO for each traveler
@@ -360,6 +377,14 @@ export class VisaApplicationDto {
 
   @IsOptional()
   insuranceCertificate?: any; // For uploaded insurance certificates
+
+  @IsOptional()
+  @IsBoolean()
+  insurancePaymentCompleted?: boolean; // Whether insurance payment is completed
+
+  @IsOptional()
+  @IsString()
+  paymentDate?: string; // ISO date string when payment was made
 
   @IsOptional()
   appointment?: any; // For appointment data (preference1, preference2, etc.)
