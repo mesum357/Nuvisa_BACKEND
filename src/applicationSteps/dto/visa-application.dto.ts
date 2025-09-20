@@ -98,9 +98,7 @@ export class TravelerBasicDetailsDto {
   travelEndDate?: string;
 }
 
-// Visit Details DTO for each traveler
 export class TravelerVisitDetailsDto {
-  // Travel Information (always present in current form)
   @IsOptional()
   @IsArray()
   visitingOtherSchengenCountries?: string[];
@@ -109,7 +107,6 @@ export class TravelerVisitDetailsDto {
   @IsString()
   firstCountryOfEntry?: string;
 
-  // Visa History (always present in current form)
   @IsOptional()
   @IsString()
   hasSchengenVisa?: string;
@@ -130,7 +127,6 @@ export class TravelerVisitDetailsDto {
   @IsString()
   previousVisaNumber?: string;
 
-  // Personal Information (always present in current form)
   @IsOptional()
   @IsString()
   maritalStatus?: string;
@@ -143,12 +139,10 @@ export class TravelerVisitDetailsDto {
   @IsString()
   partnerDateOfBirth?: string;
 
-  // Employment Information (always present in current form)
   @IsOptional()
   @IsString()
   employmentStatus?: string;
 
-  // Student fields (conditional)
   @IsOptional()
   @IsString()
   institutionName?: string;
@@ -161,7 +155,6 @@ export class TravelerVisitDetailsDto {
   @IsString()
   instituteAddress?: string;
 
-  // Employed fields (conditional)
   @IsOptional()
   @IsString()
   employerPhone?: string;
@@ -178,12 +171,10 @@ export class TravelerVisitDetailsDto {
   @IsString()
   employerAddress?: string;
 
-  // Other employment (conditional)
   @IsOptional()
   @IsString()
   otherEmploymentStatus?: string;
 
-  // Payment Information (always present in current form)
   @IsOptional()
   @IsString()
   willAnyonePayForVisit?: string;
@@ -197,13 +188,11 @@ export class TravelerVisitDetailsDto {
   tripFundedBy?: string;
 }
 
-// Documents DTO for each traveler
 export class TravelerDocumentsDto {
   @IsOptional()
-  documents?: any; // can be file list or JSON metadata
+  documents?: any;
 }
 
-// Insurance DTO for each traveler
 export class TravelerInsuranceDto {
   @IsOptional()
   @IsString()
@@ -213,16 +202,15 @@ export class TravelerInsuranceDto {
   insuranceDetails?: any;
 
   @IsOptional()
-  insuranceCertificate?: any; // For uploaded insurance certificates
+  insuranceCertificate?: any; 
 
-  // Insurance payment metadata fields
   @IsOptional()
   @IsString()
-  orderId?: string; // Order ID for insurance payment (ORD######)
+  orderId?: string;
 
   @IsOptional()
   @IsNumber()
-  paymentAmount?: number; // Amount paid for insurance (in GBP)
+  paymentAmount?: number;
 
   @IsOptional()
   @IsString()
@@ -230,10 +218,9 @@ export class TravelerInsuranceDto {
 
   @IsOptional()
   @IsBoolean()
-  insurancePaymentCompleted?: boolean; // Whether insurance payment is completed
+  insurancePaymentCompleted?: boolean;
 }
 
-// Payment DTO for each traveler
 export class TravelerPaymentDto {
   @IsOptional()
   @IsNumber()
@@ -272,7 +259,6 @@ export class TravelerPaymentDto {
   discountAmount?: number;
 }
 
-// Appointment DTO for each traveler
 export class TravelerAppointmentDto {
   @IsOptional()
   preference1?: any;
@@ -281,7 +267,6 @@ export class TravelerAppointmentDto {
   preference2?: any;
 }
 
-// Complete traveler data DTO
 export class TravelerDataDto {
   @IsOptional()
   @IsNumber()
@@ -338,9 +323,8 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsUUID()
-  applicationId?: string; // for steps after basicDetails
+  applicationId?: string; 
 
-  // Application level fields
   @IsOptional()
   @IsString()
   email?: string;
@@ -355,14 +339,14 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsString()
-  visaTypeId?: string; // SMV Konveyor visa type ID
+  visaTypeId?: string; 
 
   @IsOptional()
-  selectedVisaType?: any; // Complete selected visa type object from SMV API
+  selectedVisaType?: any;
 
   @IsOptional()
   @IsString()
-  orderId?: string; // SMV Konveyor order ID from /orders endpoint
+  orderId?: string; 
 
   @IsOptional()
   @IsString()
@@ -370,41 +354,39 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsString()
-  paymentType?: string; // To distinguish between different payment types
+  paymentType?: string;
 
   @IsOptional()
-  insuranceDetails?: any; // For insurance selection details (hasOwnInsurance, certificateUploaded, etc.)
+  insuranceDetails?: any;
 
   @IsOptional()
-  insuranceCertificate?: any; // For uploaded insurance certificates
+  insuranceCertificate?: any; 
 
   @IsOptional()
   @IsBoolean()
-  insurancePaymentCompleted?: boolean; // Whether insurance payment is completed
+  insurancePaymentCompleted?: boolean;
 
   @IsOptional()
   @IsString()
-  paymentDate?: string; // ISO date string when payment was made
+  paymentDate?: string; 
 
   @IsOptional()
-  appointment?: any; // For appointment data (preference1, preference2, etc.)
+  appointment?: any;    
 
-  // Traveler management fields
   @IsOptional()
   @IsNumber()
   numberOfTravellers?: number;
 
   @IsOptional()
   @IsNumber()
-  currentTravelerIndex?: number; // To track which traveler's step we're processing
+  currentTravelerIndex?: number; 
 
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => TravelerDataDto)
-  travelersData?: TravelerDataDto[]; // Complete structured data for all travelers
+  travelersData?: TravelerDataDto[]; 
 
-  // Application step tracking fields
   @IsOptional()
   @IsString()
   currentStep?: string;

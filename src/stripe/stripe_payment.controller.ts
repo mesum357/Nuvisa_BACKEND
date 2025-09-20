@@ -61,19 +61,14 @@ export class StripeController {
     }
   }
 
-  // Test endpoint to manually trigger insurance payment update (for development)
   @Post("test-insurance-payment")
   @UsePipes(ValidationPipe)
   async testInsurancePayment(@Body() body: any): Promise<any> {
     try {
-      console.log("=== MANUAL INSURANCE PAYMENT TEST ===");
-      console.log("Test payment data:", body);
-      
-      // Simulate the payment success data structure
-      // Ensure an orderId exists in test metadata so backend validation passes during dev
-      const mockOrderId = body.orderId || `ORD${String(Math.floor(Math.random() * 900000) + 100000)}`;
+      const mockOrderId =
+        body.orderId ||
+        `ORD${String(Math.floor(Math.random() * 900000) + 100000)}`;
 
-      // If amount or email not provided, try to derive sensible defaults from the application
       let derivedAmount = body.amount;
       let derivedEmail = body.email;
       if ((!derivedAmount || derivedAmount === "") && body.applicationId) {
@@ -81,7 +76,6 @@ export class StripeController {
           const app = await VisaApplication.findByPk(body.applicationId);
           if (app) {
             derivedEmail = derivedEmail || app.email;
-            // Try to compute expected insurance cost from travel dates for the traveler
             if (app.travelersData) {
               try {
                 const travelers = JSON.parse(app.travelersData || "[]");
@@ -94,23 +88,25 @@ export class StripeController {
                   const end = traveler.basicDetails.travelEndDate
                     ? new Date(traveler.basicDetails.travelEndDate)
                     : null;
-                  if (start && end && !isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                  if (
+                    start &&
+                    end &&
+                    !isNaN(start.getTime()) &&
+                    !isNaN(end.getTime())
+                  ) {
                     const diffTime = Math.abs(end.getTime() - start.getTime());
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const diffDays = Math.ceil(
+                      diffTime / (1000 * 60 * 60 * 24)
+                    );
                     const travelDays = Math.max(1, diffDays);
-                      const insuranceCost = travelDays * 2; // £2 per day
-                      // No service fee - derived amount is base insuranceCost
-                      derivedAmount = String(insuranceCost.toFixed(2));
+                    const insuranceCost = travelDays * 2;
+                    derivedAmount = String(insuranceCost.toFixed(2));
                   }
                 }
-              } catch (e) {
-                // ignore parse errors; leave derivedAmount undefined
-              }
+              } catch (e) {}
             }
           }
-        } catch (err) {
-          // ignore — we'll fall back to body.amount or undefined
-        }
+        } catch (err) {}
       }
 
       const mockPaymentData = {
@@ -120,15 +116,14 @@ export class StripeController {
           applicationId: body.applicationId,
           email: derivedEmail || body.email,
           amount: derivedAmount || body.amount,
-          amountGBP: derivedAmount || body.amount, // include amountGBP for webhook preference
+          amountGBP: derivedAmount || body.amount,
           orderId: mockOrderId,
-        }
+        },
       };
-      
-      const result = await this.stripeService.handlePaymentSuccess(mockPaymentData);
-      
-      console.log("=== END MANUAL INSURANCE PAYMENT TEST ===");
-      
+
+      const result =
+        await this.stripeService.handlePaymentSuccess(mockPaymentData);
+
       return GetObjectTemplateForAPIResponseGeneral(
         EnumAPIResponseStatusType.SUCCESS,
         result,
