@@ -37,4 +37,9 @@ export default {
 
   Webhook_Secret: process.env.STRIPE_WEBHOOK_SECRET,
   stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+  HETZNER_S3_ENDPOINT: process.env.HETZNER_S3_ENDPOINT,
+  HETZNER_S3_REGION: process.env.HETZNER_S3_REGION,
+  HETZNER_S3_BUCKET_NAME: process.env.HETZNER_S3_BUCKET_NAME,
+  HETZNER_S3_ACCESS_KEY: process.env.HETZNER_S3_ACCESS_KEY,
+  HETZNER_S3_SECRET_KEY: process.env.HETZNER_S3_SECRET_KEY,
 };
