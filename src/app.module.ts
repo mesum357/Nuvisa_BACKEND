@@ -16,6 +16,7 @@ import { StripeModule } from "./stripe/stripe.module";
 import { VisaApplicationModule } from "./applicationSteps/visa-application.module";
 import { VisaApplicationService } from "./applicationSteps/visa-application.service";
 import { AdminModule } from "./admin/admin.module";
+import { UploadModule } from "./upload/upload.module";
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { AdminModule } from "./admin/admin.module";
     StripeModule,
     VisaApplicationModule,
     AdminModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [
