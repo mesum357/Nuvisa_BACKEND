@@ -103,4 +103,44 @@ export class VisaApplicationController {
       callHTTPException(error.message);
     }
   }
+
+  @Post("archive")
+  @UsePipes(ValidationPipe)
+  @UseGuards(AuthGuard)
+  async archiveVisaApplication(
+    @Body() dto: VisaApplicationDeleteDto,
+    @Req() request: string
+  ) {
+    try {
+      const application =
+        await this.visaApplicationService.archiveVisaApplication(dto);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        application,
+        "Visa application archived successfully"
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
+
+  @Post("unarchive")
+  @UsePipes(ValidationPipe)
+  @UseGuards(AuthGuard)
+  async unarchiveVisaApplication(
+    @Body() dto: VisaApplicationDeleteDto,
+    @Req() request: string
+  ) {
+    try {
+      const application =
+        await this.visaApplicationService.unarchiveVisaApplication(dto);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        application,
+        "Visa application restored successfully"
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
 }

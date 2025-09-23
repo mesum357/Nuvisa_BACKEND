@@ -75,4 +75,8 @@ export class VisaApplication extends Model<VisaApplication> {
   @AllowNull(true)
   @Column({ type: DataType.JSON })
   stepData: any; // store step-specific metadata
+
+  @AllowNull(true)
+  @Column({ type: DataType.DATE })
+  archivedAt: Date;
 }

@@ -52,4 +52,8 @@ export class checkoutSessionDto {
   @IsOptional()
   @IsString()
   visaTypeId?: string;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
 }

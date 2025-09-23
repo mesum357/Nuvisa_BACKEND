@@ -177,8 +177,27 @@ export class VisaApplicationService {
           ...appWithoutRedundantFields
         } = appJson;
 
+        let orderId = appWithoutRedundantFields.orderId || null;
+        try {
+          if (
+            !orderId &&
+            Array.isArray(parsedTravelersData) &&
+            parsedTravelersData.length > 0
+          ) {
+            const firstTraveler = parsedTravelersData[0];
+            if (
+              firstTraveler &&
+              firstTraveler.insurance &&
+              firstTraveler.insurance.orderId
+            ) {
+              orderId = firstTraveler.insurance.orderId;
+            }
+          }
+        } catch {}
+
         return {
           ...appWithoutRedundantFields,
+          orderId,
           travelersData: parsedTravelersData,
         };
       });
@@ -982,7 +1001,63 @@ export class VisaApplicationService {
 
   async deleteVisaApplication(dto: VisaApplicationDeleteDto) {
     try {
-      return "application";
+      if (!dto || !dto.id) {
+        callHTTPException("application id is required");
+      }
+
+      const application = await VisaApplication.findByPk(dto.id);
+      if (!application) {
+        callHTTPException("Visa application not found");
+      }
+
+      await application.destroy();
+      return { id: dto.id, deleted: true };
+    } catch (err) {
+      callHTTPException(err.message);
+    }
+  }
+
+  async archiveVisaApplication(dto: VisaApplicationDeleteDto) {
+    try {
+      if (!dto || !dto.id) {
+        callHTTPException("application id is required");
+      }
+
+      const application = await VisaApplication.findByPk(dto.id);
+      if (!application) {
+        callHTTPException("Visa application not found");
+      }
+
+      application.archivedAt = new Date();
+      await application.save();
+
+      const appJson = application.toJSON();
+      const { currentStep, completedSteps, stepProgress, stepData, ...rest } =
+        appJson;
+      return { application: rest };
+    } catch (err) {
+      callHTTPException(err.message);
+    }
+  }
+
+  async unarchiveVisaApplication(dto: VisaApplicationDeleteDto) {
+    try {
+      if (!dto || !dto.id) {
+        callHTTPException("application id is required");
+      }
+
+      const application = await VisaApplication.findByPk(dto.id);
+      if (!application) {
+        callHTTPException("Visa application not found");
+      }
+
+      application.archivedAt = null;
+      await application.save();
+
+      const appJson = application.toJSON();
+      const { currentStep, completedSteps, stepProgress, stepData, ...rest } =
+        appJson;
+      return { application: rest };
     } catch (err) {
       callHTTPException(err.message);
     }
@@ -1703,12 +1778,10 @@ export class VisaApplicationService {
         application.applicationStatus !== "payment_required"
       ) {
         application.applicationStatus = "submitted";
-        
       }
     } else {
       if (application.applicationStatus === "submitted") {
         application.applicationStatus = "new";
-      
       }
     }
   }
