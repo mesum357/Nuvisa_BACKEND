@@ -26,6 +26,10 @@ export class StripeService {
 
       let { email, amount, successUrl, cancelUrl, paymentType } = checkoutData;
 
+      const currency = (checkoutData.currency || "INR")
+        .toString()
+        .toLowerCase();
+
       const amountInCents = Math.round(Number(amount) * 100);
 
       const customerEmail = email ? { customer_email: email } : {};
@@ -52,7 +56,7 @@ export class StripeService {
         line_items: [
           {
             price_data: {
-              currency: "inr",
+              currency: currency,
               product_data: {
                 name:
                   paymentType === "additional_traveler_insurance" ||
