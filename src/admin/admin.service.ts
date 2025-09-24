@@ -76,10 +76,10 @@ export class AdminService {
           if (isDataUrl(value)) {
             return { previewUrl: value, downloadUrl: value, status: 'uploaded' };
           }
-          return { previewUrl: null, downloadUrl: null, status: value ? 'uploaded' : 'pending' };
+          return { previewUrl: value, downloadUrl: value, status: 'uploaded' };
         }
         if (value && typeof value === 'object') {
-          const previewUrl = value.previewUrl || value.url || value.fileUrl || (isDataUrl(value.base64) ? value.base64 : null) || null;
+           const previewUrl = value.previewUrl || value.url || value.fileUrl || (isDataUrl(value.base64) ? value.base64 : (value.base64 ? `data:image/png;base64,${value.base64}` : null)) || null;
           const downloadUrl = value.downloadUrl || value.url || value.fileUrl || previewUrl || null;
           const status = value.status || (previewUrl ? 'uploaded' : 'pending');
           const type = value.type || undefined;
@@ -184,11 +184,14 @@ export class AdminService {
       const isDataUrl = (s: any) => typeof s === 'string' && s.startsWith('data:');
       const norm = (key: string, value: any) => {
         if (typeof value === 'string') {
-          const previewUrl = isDataUrl(value) ? value : null;
-          return { previewUrl, downloadUrl: previewUrl, status: previewUrl ? 'uploaded' : 'pending' };
+          if (isDataUrl(value)) {
+            return { previewUrl: value, downloadUrl: value, status: 'uploaded' };
+          } else {
+            return { previewUrl: value, downloadUrl: value, status: 'uploaded' };
+          }
         }
         if (value && typeof value === 'object') {
-          const previewUrl = value.previewUrl || value.url || value.fileUrl || (isDataUrl(value.base64) ? value.base64 : null) || null;
+          const previewUrl = value.previewUrl || value.url || value.fileUrl || (isDataUrl(value.base64) ? value.base64 : (value.base64 ? `data:image/png;base64,${value.base64}` : null)) || null;
           const downloadUrl = value.downloadUrl || value.url || value.fileUrl || previewUrl || null;
           const status = value.status || (previewUrl ? 'uploaded' : 'pending');
           const type = value.type || undefined;
@@ -487,10 +490,32 @@ export class AdminService {
       travelersData = [];
     }
 
+  let orderId = appData.orderId || null;
+    try {
+      if (!orderId && Array.isArray(travelersData) && travelersData.length > 0) {
+        const firstTraveler = travelersData[0];
+        if (firstTraveler) {
+          if (firstTraveler.insurance && firstTraveler.insurance.orderId) {
+            orderId = firstTraveler.insurance.orderId;
+          } else if (firstTraveler.payment && firstTraveler.payment.orderId) {
+            orderId = firstTraveler.payment.orderId;
+          }
+        }
+      }
+      if (!orderId) {
+        orderId = appData.id;
+      }
+    } catch {
+    }
+
+    const applicationId = appData.id !== undefined && appData.id !== null ? String(appData.id) : '';
+
     return {
       ...appData,
+      applicationId,
       travelersData,
-      code: appData.orderId || `APP-${appData.id.slice(0, 8).toUpperCase()}`
+      orderId,
+      code: orderId || appData.orderId || `APP-${applicationId.slice(0, 8).toUpperCase()}`
     };
   }
 
