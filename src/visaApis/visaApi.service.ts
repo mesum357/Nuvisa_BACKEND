@@ -18,45 +18,23 @@ export class VisaService {
   async getVisaTypes(countryCode?: string): Promise<any> {
     try {
       // Get auth token first
-      console.log("Attempting to get visa types for country:", countryCode);
       const tokenResponse = await this.visaApiAuthService.GetVisaApiAuthToken();
-      console.log("Token response received:", {
-        fullResponse: tokenResponse,
-        hasToken: !!tokenResponse?.token,
-        tokenType: tokenResponse?.token_type,
-        tokenPrefix: tokenResponse?.token?.substring(0, 20) + "...",
-      });
-
       // Extract the token - now we know it's always in the token property
       const authToken = tokenResponse?.token;
-
-      console.log("Extracted auth token:", {
-        token: authToken ? authToken.substring(0, 20) + "..." : "null",
-        tokenExists: !!authToken,
-      });
-
       if (!authToken) {
         console.error(
           "No auth token received from service - tokenResponse:",
           tokenResponse
         );
-        console.log("Falling back to mock data due to missing token");
         return this.getMockVisaTypes(countryCode);
       }
 
       // Check if using mock token
       if (authToken.startsWith("mock_dev_token_")) {
-        console.log("Using mock visa types data for development");
         return this.getMockVisaTypes(countryCode);
       }
 
-      console.log("Using real SMV API with auth token");
-
       // First try to test a basic endpoint to verify our authentication works
-      console.log(
-        "Testing SMV API authentication with a basic endpoint first..."
-      );
-
       try {
         const testResponse = await axios.get(
           `${Env.VISA_API_SERVER}/${Env.VISA_API_VERSION}/countries`,
@@ -74,30 +52,7 @@ export class VisaService {
             },
           }
         );
-
-        if (testResponse.status === 200) {
-          console.log("SMV API authentication test successful:", {
-            status: testResponse.status,
-            endpoint: "countries",
-            dataType: typeof testResponse.data,
-          });
-        } else {
-          console.log("SMV API countries endpoint returned non-200 status:", {
-            status: testResponse.status,
-            statusText: testResponse.statusText,
-            data: testResponse.data,
-          });
-        }
-      } catch (testError) {
-        console.log(
-          "SMV API authentication test failed on countries endpoint:",
-          {
-            status: testError.response?.status,
-            statusText: testError.response?.statusText,
-            data: testError.response?.data,
-            message: testError.message,
-          }
-        );
+      } catch {
       }
 
       // Build URL for visa types API (include API version)
@@ -105,14 +60,6 @@ export class VisaService {
       if (countryCode) {
         url += `?symbol=${countryCode}`;
       }
-
-      console.log("Making request to SMV API visa_types:", {
-        url: url,
-        method: "GET",
-        hasAuthToken: !!authToken,
-        countryCode: countryCode,
-        tokenPrefix: authToken.substring(0, 50) + "...",
-      });
 
       const response = await axios.get(url, {
         headers: {
@@ -126,18 +73,6 @@ export class VisaService {
         validateStatus: function (status) {
           return status < 500; // Don't throw for 4xx errors, we want to see them
         },
-      });
-
-      console.log("SMV API visa_types response:", {
-        status: response.status,
-        statusText: response.statusText,
-        headers: {
-          "content-type": response.headers["content-type"],
-          server: response.headers["server"],
-          date: response.headers["date"],
-        },
-        dataType: typeof response.data,
-        dataLength: Array.isArray(response.data) ? response.data.length : "N/A",
       });
 
       if (response.status === 401) {
@@ -180,19 +115,12 @@ export class VisaService {
       // If we get 401 error and we're using a country code, try without it
       if (error.response?.status === 401 && countryCode) {
         try {
-          console.log("Retrying without country code due to 401 error...");
           const baseUrl = `${Env.VISA_API_SERVER}/${Env.VISA_API_VERSION}/visa_types`;
 
           // Get fresh auth token for retry
           const tokenResponse =
             await this.visaApiAuthService.GetVisaApiAuthToken();
           const authToken = tokenResponse.token;
-
-          console.log("Retrying with fresh token:", {
-            hasToken: !!authToken,
-            tokenLength: authToken?.length,
-            tokenPrefix: authToken?.substring(0, 30) + "...",
-          });
 
           const retryResponse = await axios.get(baseUrl, {
             headers: {
@@ -208,13 +136,7 @@ export class VisaService {
             },
           });
 
-          console.log("Retry without country code succeeded:", {
-            status: retryResponse.status,
-            dataLength: Array.isArray(retryResponse.data)
-              ? retryResponse.data.length
-              : "N/A",
-          });
-
+        
           return {
             success: true,
             data: retryResponse.data,
@@ -227,19 +149,6 @@ export class VisaService {
           });
         }
       }
-
-      // If there's an error, try to fallback to mock data
-      console.log("Fallback: Using mock visa types data due to error");
-      console.log(
-        "Note: SMV API returned 401 Authentication failed. This suggests:"
-      );
-      console.log(
-        "1. API credentials may not have permission to access visa_types endpoint"
-      );
-      console.log(
-        "2. visa_types endpoint may require additional authorization"
-      );
-      console.log("3. Contact SMV API team to verify endpoint permissions");
 
       const mockData = this.getMockVisaTypes(countryCode);
       return {
@@ -264,7 +173,6 @@ export class VisaService {
 
       // Check if using mock token
       if (authToken.startsWith("mock_dev_token_")) {
-        console.log("Using mock countries data for development");
         return this.getMockCountries();
       }
 

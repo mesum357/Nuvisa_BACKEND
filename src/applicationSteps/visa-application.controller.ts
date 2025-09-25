@@ -42,7 +42,6 @@ export class VisaApplicationController {
         "Visa application fetched successfully"
       );
     } catch (error) {
-      console.log("error ::: ", error);
       callHTTPException(error.message);
     }
   }
@@ -65,7 +64,6 @@ export class VisaApplicationController {
         "Visa application fetched successfully"
       );
     } catch (error) {
-      console.log("error ::: ", error);
       callHTTPException(error.message);
     }
   }
@@ -82,7 +80,6 @@ export class VisaApplicationController {
         "Visa application step saved successfully"
       );
     } catch (error) {
-      console.log("error ::: ", error);
       callHTTPException(error.message);
     }
   }
@@ -99,7 +96,6 @@ export class VisaApplicationController {
         "Visa application step saved successfully"
       );
     } catch (error) {
-      console.log("error ::: ", error);
       callHTTPException(error.message);
     }
   }

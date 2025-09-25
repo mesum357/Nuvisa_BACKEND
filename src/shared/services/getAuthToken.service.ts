@@ -14,9 +14,6 @@ export class VisaAPiAuthService {
         client_secret: Env.VISA_API_CLIENT_SECRET,
       };
 
-      console.log('Attempting to get auth token from:', url);
-      console.log('Request body:', { client_id: Env.VISA_API_CLIENT_ID, client_secret: '***' });
-
       const response = await axios.post(url, body, {
         headers: {
           'Content-Type': 'application/json',
@@ -25,16 +22,6 @@ export class VisaAPiAuthService {
         },
         timeout: 10000,
       });
-
-      console.log('Auth token received successfully from external API');
-      console.log('Response status:', response.status);
-      console.log('Response headers:', {
-        'content-type': response.headers['content-type'],
-        'server': response.headers['server'], 
-        'date': response.headers['date']
-      });
-      console.log('Full response data:', JSON.stringify(response.data, null, 2));
-      console.log('Response data.data:', JSON.stringify(response.data.data, null, 2));
       
       // Decode the JWT token to see its contents (for debugging)
       if (response.data.data) {
@@ -55,8 +42,7 @@ export class VisaAPiAuthService {
             exp: payload.exp ? new Date(payload.exp * 1000).toISOString() : 'No expiry',
             sub: payload.sub
           });
-        } catch (decodeError) {
-          console.log('Could not decode JWT token for debugging:', decodeError.message);
+        } catch {
         }
       }
       
@@ -70,11 +56,6 @@ export class VisaAPiAuthService {
         expires_in: 3600 // Default expiry
       };
       
-      console.log('Formatted token data:', { 
-        hasToken: !!tokenData.token, 
-        tokenType: tokenData.token_type,
-        tokenPrefix: tokenData.token.substring(0, 20) + "..." 
-      });
       
       return tokenData;
     } catch (error) {
@@ -84,14 +65,12 @@ export class VisaAPiAuthService {
       );
       
       // For development: return a mock token if external API is not available
-      console.log("External API failed, returning mock token for development purposes");
       const mockToken = {
         token: "mock_dev_token_" + Date.now(),
         expires_in: 3600,
         token_type: "Bearer"
       };
       
-      console.log("Mock token generated:", { ...mockToken, token: mockToken.token.substring(0, 20) + "..." });
       return mockToken;
     }
   }

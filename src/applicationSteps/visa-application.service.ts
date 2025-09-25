@@ -1138,9 +1138,6 @@ export class VisaApplicationService {
     travelerData: any,
     application: VisaApplication
   ) {
-    console.log("=== GET TRAVELER STEP INFORMATION ===");
-    console.log("Traveler ID:", travelerData.id);
-
     const allSteps = [
       VisaApplicationStepType.CREATE_APPLICATION,
       VisaApplicationStepType.BASIC_DETAILS,

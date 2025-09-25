@@ -47,13 +47,9 @@ export class StripeController {
 
   @Post("webhook")
   async handleStripeWebhook(@Req() req: Request, @Res() res: Response) {
-    console.log("=== WEBHOOK ENDPOINT HIT ===");
-    console.log("Webhook request received");
     try {
       const rawReq = req as Request & { rawBody: Buffer };
-      console.log("Processing webhook...");
       const response = await this.stripeService.handleWebhook(rawReq);
-      console.log("Webhook processed successfully");
       return res.status(HttpStatus.OK).json(response);
     } catch (error) {
       console.error("Webhook processing error:", error);

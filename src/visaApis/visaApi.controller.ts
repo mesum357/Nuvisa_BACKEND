@@ -97,7 +97,6 @@ export class VisaController {
   @Get("debug/smv-auth")
   async debugSmvAuth() {
     try {
-      console.log('\n=== DEBUG: Testing SMV API Authentication ===');
       
       // Get auth token using the existing service 
       const tokenResponse = await this.authService.generateToken();
@@ -113,7 +112,6 @@ export class VisaController {
         };
       }
 
-      console.log('\n=== Testing Different SMV API Endpoints ===');
       const endpoints = [
         '/countries',
         '/visa_types',
@@ -125,7 +123,6 @@ export class VisaController {
 
       for (const endpoint of endpoints) {
         try {
-          console.log(`\nTesting endpoint: ${endpoint}`);
           const url = `${Env.VISA_API_SERVER}/${Env.VISA_API_VERSION}${endpoint}`;
           
           const response = await axios.get(url, {
@@ -153,12 +150,6 @@ export class VisaController {
             data: response.status === 200 ? response.data : response.data
           };
 
-          console.log(`Result for ${endpoint}:`, {
-            status: response.status,
-            success: response.status === 200,
-            dataType: typeof response.data
-          });
-
         } catch (error) {
           results[endpoint] = {
             status: error.response?.status || 'ERROR',
@@ -166,11 +157,6 @@ export class VisaController {
             error: error.message,
             data: error.response?.data
           };
-
-          console.log(`Error for ${endpoint}:`, {
-            status: error.response?.status,
-            message: error.message
-          });
         }
       }
 
