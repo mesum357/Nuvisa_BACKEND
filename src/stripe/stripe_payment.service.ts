@@ -235,7 +235,6 @@ export class StripeService {
           return;
         }
 
-        const updateResult =
           await this.visaApplicationService.createOrUpdateApplication({
             type: VisaApplicationStepType.INSURANCE,
             applicationId: data.metadata.applicationId,

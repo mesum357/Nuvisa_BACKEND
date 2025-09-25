@@ -5,23 +5,14 @@ import {
   Body,
   UsePipes,
   ValidationPipe,
-  UseGuards,
-  Put,
-  UploadedFiles,
-  ParseFilePipe,
-  UseInterceptors,
   Get,
-  Query,
 } from "@nestjs/common";
 
-import { callHTTPException } from "src/shared/exceptions";
 import { VisaService } from "./visaApi.service";
 import {
   GetObjectTemplateForAPIResponseGeneral,
-  ObjectTemplateForAPIResponseGeneral,
 } from "src/shared/data_templates/ObjectTemplateForAPIResponse";
 import { EnumAPIResponseStatusType } from "src/shared/enums";
-import { VisaAPiAuthService } from "src/shared/services/getAuthToken.service";
 import axios from 'axios';
 import { Env } from '../shared/config';
 

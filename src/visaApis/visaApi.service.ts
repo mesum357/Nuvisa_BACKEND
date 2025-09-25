@@ -1,17 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { v4 as uuidv4 } from "uuid";
-import { LoginDto, UserDto } from "./dto";
-import * as bcrypt from "bcrypt";
-import { JwtAuthService } from "src/shared/services/jwt-auth.service";
-import { v4 } from "uuid";
-import { callHTTPException } from "src/shared/exceptions";
 
-import {
-  sendEmail,
-  renderTemplate,
-} from "src/shared/services/sendEmail.service";
-import { UpdateUserDto, VefifyOtpDto } from "./dto/auth.dto";
-import { Op } from "sequelize";
 
 import { Env } from "src/shared/config";
 import { VisaAPiAuthService } from "src/shared/services/getAuthToken.service";
@@ -318,11 +306,7 @@ export class VisaService {
         throw new Error("Failed to get authentication token");
       }
 
-      // Check if using mock token
-      if (authToken.startsWith("mock_dev_token_")) {
-        console.log("Using mock order creation for development");
-        return this.getMockOrderCreation(orderData);
-      }
+    
 
       // Use the exact SMV Konveyor API format
       const payload = {

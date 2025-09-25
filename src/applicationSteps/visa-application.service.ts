@@ -134,6 +134,9 @@ export class VisaApplicationService {
                 insurance: app.insurance || "false",
                 insuranceDetails:
                   app.insurance === "true" ? { selected: true } : null,
+                orderId: null,
+                paymentAmount: null,
+                insurancePaymentCompleted: false,
               },
             })
           );
@@ -293,6 +296,9 @@ export class VisaApplicationService {
                 userVisaApplication.insurance === "true"
                   ? { selected: true }
                   : null,
+              orderId: null,
+              paymentAmount: null,
+              insurancePaymentCompleted: false,
             },
           })
         );
@@ -427,6 +433,9 @@ export class VisaApplicationService {
                 insurance: "",
                 insuranceDetails: null,
                 insuranceCertificate: null,
+                orderId: null,
+                paymentAmount: null,
+                insurancePaymentCompleted: false,
               },
               payment: {
                 appointmentFees: 2060,
@@ -444,6 +453,7 @@ export class VisaApplicationService {
         }
 
         if (dto.travelersData && dto.insurance) {
+       
           processedTravelersData = dto.travelersData.map((traveler, index) => {
             const numberOfPaidTravelers = dto.numberOfTravellers || 1;
             if (index < numberOfPaidTravelers) {
@@ -464,6 +474,7 @@ export class VisaApplicationService {
                 insurance: "false",
                 insuranceDetails: null,
               },
+
             };
           });
         }
@@ -479,11 +490,11 @@ export class VisaApplicationService {
           currentStep: VisaApplicationStepType.BASIC_DETAILS, // Set to next step immediately
           completedSteps: [VisaApplicationStepType.CREATE_APPLICATION],
           stepProgress: 25,
-          // Initialize traveler data structure
           numberOfTravellers: dto.numberOfTravellers || 1,
           travelersData: processedTravelersData
             ? JSON.stringify(processedTravelersData)
             : null,
+          insurance: dto.insurance || "false",
         });
       } else {
         if (!dto.applicationId) {
