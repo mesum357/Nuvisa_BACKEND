@@ -222,6 +222,12 @@ export class AuthService {
       };
 
       const { subject, emailBody } = renderTemplate(emailType, dynamicData);
+      console.log(
+        subject,
+        emailBody,
+        JSON.stringify(process.env),
+        "TEMP__________EMAIL________BEFORE"
+      );
       const sendingEmail = await sendEmail({
         emailAddress: dynamicData.email,
         subject,
@@ -229,7 +235,7 @@ export class AuthService {
       });
       console.log(
         sendingEmail,
-        JSON.stringify(sendingEmail),
+        JSON.stringify(process.env),
         "TEMP__________EMAIL"
       );
     } catch (err) {
