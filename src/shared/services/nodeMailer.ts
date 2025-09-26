@@ -12,8 +12,5 @@ const transporterConfig = {
   },
 };
 
-// Log the configuration to the console for debugging
-console.log("NODEMAILER_CONFIG:", JSON.stringify(transporterConfig, null, 2));
-
 // Create the transporter with the config
 export const transporter = createTransport(transporterConfig);

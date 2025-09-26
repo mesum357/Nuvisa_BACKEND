@@ -53,15 +53,9 @@ export class AuthService {
 
   async login(loginDto: LoginDto): Promise<any> {
     try {
-      console.log("FUNCTION___CALLED");
-
       const { email, sessionUser } = loginDto;
 
-      console.log(loginDto, "TEMP____LOGIN_____DTO");
-
       let user = await this.checkIfUserExists(email);
-
-      console.log(user, "TEMP____USER_____FOUND");
 
       if (!user) {
         const username = `user_${uuidv4().replace(/-/g, "").substr(0, 8)}`;
@@ -228,22 +222,11 @@ export class AuthService {
       };
 
       const { subject, emailBody } = renderTemplate(emailType, dynamicData);
-      console.log(
-        subject,
-        emailBody,
-        JSON.stringify(process.env),
-        "TEMP__________EMAIL________BEFORE"
-      );
       const sendingEmail = await sendEmail({
         emailAddress: dynamicData.email,
         subject,
         body: emailBody,
       });
-      console.log(
-        sendingEmail,
-        JSON.stringify(process.env),
-        "TEMP__________EMAIL"
-      );
     } catch (err) {
       callHTTPException("Something went wrong while sending welcome email");
     }
