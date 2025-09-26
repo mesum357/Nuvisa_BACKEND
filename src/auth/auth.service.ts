@@ -58,14 +58,9 @@ export class AuthService {
       let user = await this.checkIfUserExists(email);
 
       if (!user) {
-        const username = `user_${uuidv4().replace(/-/g, "").substr(0, 8)}`;
-        user = await User.create({
-          email,
-          user_name: username,
-          first_name: "",
-          last_name: "",
-          phone_no: "",
-        });
+        throw callHTTPException(
+          "Account dosn’t exist, you may checkout instead."
+        );
       }
 
       // Generate OTP
