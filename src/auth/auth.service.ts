@@ -221,15 +221,17 @@ export class AuthService {
         otp,
       };
 
-      const { subject, emailBody } = await renderTemplate(
-        emailType,
-        dynamicData
-      );
+      const { subject, emailBody } = renderTemplate(emailType, dynamicData);
       const sendingEmail = await sendEmail({
         emailAddress: dynamicData.email,
         subject,
         body: emailBody,
       });
+      console.log(
+        sendingEmail,
+        JSON.stringify(sendingEmail),
+        "TEMP__________EMAIL"
+      );
     } catch (err) {
       callHTTPException("Something went wrong while sending welcome email");
     }

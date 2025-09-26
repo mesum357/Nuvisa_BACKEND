@@ -15,7 +15,7 @@ export async function sendEmail(emailMeta) {
       html: emailTemplate,
     };
 
-    await transporter.sendMail(mailOptions);
+    return await transporter.sendMail(mailOptions);
   } catch (err) {
     callHTTPException("Failed to send an email");
   }
@@ -75,7 +75,7 @@ const getEmailTemplateHeaderFooter = (emailContent) => {
 `;
 };
 
-export async function renderTemplate(templateKey, dynamicData) {
+export function renderTemplate(templateKey, dynamicData) {
   try {
     const template = emailTemplates.find((t) => t.key === templateKey);
     if (!template) {
