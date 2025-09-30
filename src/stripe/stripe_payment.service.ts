@@ -18,7 +18,7 @@ export class StripeService {
     private readonly authService: AuthService,
     private readonly visaService: VisaService,
     private readonly visaApplicationService: VisaApplicationService
-  ) {}
+  ) { }
 
   async createCheckoutSession(checkoutData: checkoutSessionDto): Promise<any> {
     try {
@@ -42,7 +42,9 @@ export class StripeService {
           sessionUser: true,
         };
 
-        authResponse = await this.authService.login(loginDto);
+        authResponse = await this.authService.login(loginDto, "checkout");
+
+
       } else {
         authResponse = {
           message: "Using existing session for insurance payment",
@@ -60,7 +62,7 @@ export class StripeService {
               product_data: {
                 name:
                   paymentType === "additional_traveler_insurance" ||
-                  paymentType === "traveler_insurance"
+                    paymentType === "traveler_insurance"
                     ? "Travel Insurance Payment"
                     : "Custom Payment",
               },
@@ -235,17 +237,17 @@ export class StripeService {
           return;
         }
 
-          await this.visaApplicationService.createOrUpdateApplication({
-            type: VisaApplicationStepType.INSURANCE,
-            applicationId: data.metadata.applicationId,
-            currentTravelerIndex: travelerIndex,
-            email: data.metadata.email,
-            amountPaid: paymentAmount.toString(),
-            paymentType: data.metadata.paymentType,
-            orderId: data.metadata.orderId,
-            insurancePaymentCompleted: true,
-            paymentDate: new Date().toISOString(),
-          });
+        await this.visaApplicationService.createOrUpdateApplication({
+          type: VisaApplicationStepType.INSURANCE,
+          applicationId: data.metadata.applicationId,
+          currentTravelerIndex: travelerIndex,
+          email: data.metadata.email,
+          amountPaid: paymentAmount.toString(),
+          paymentType: data.metadata.paymentType,
+          orderId: data.metadata.orderId,
+          insurancePaymentCompleted: true,
+          paymentDate: new Date().toISOString(),
+        });
       } else {
         await this.visaApplicationService.createOrUpdateApplication({
           type: VisaApplicationStepType.CREATE_APPLICATION,
