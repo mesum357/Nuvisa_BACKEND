@@ -19,7 +19,7 @@ import { Env } from "src/shared/config";
 //auth
 @Injectable()
 export class AuthService {
-  constructor(private readonly jwtAuthService: JwtAuthService) {}
+  constructor(private readonly jwtAuthService: JwtAuthService) { }
 
   async checkIfUserExists(email: string): Promise<User> {
     const user = await User.findOne({
@@ -51,16 +51,27 @@ export class AuthService {
     }
   }
 
-  async login(loginDto: LoginDto): Promise<any> {
+  async login(loginDto: LoginDto, type = null): Promise<any> {
     try {
       const { email, sessionUser } = loginDto;
 
       let user = await this.checkIfUserExists(email);
 
       if (!user) {
-        throw callHTTPException(
-          "Account dosn’t exist, you may checkout instead."
-        );
+        if (type === "checkout") {
+          const guestUsername = `user_${v4().replace(/-/g, "").substr(0, 8)}`;
+          user = await User.create({
+            first_name: "",
+            last_name: "",
+            user_name: guestUsername,
+            email: email,
+            phone_no: null,
+          });
+        } else {
+          throw callHTTPException(
+            "Account dosn’t exist, you may checkout instead."
+          );
+        }
       }
 
       // Generate OTP
@@ -176,7 +187,7 @@ export class AuthService {
 
   async updateUser(files: any, updateUserDto: UpdateUserDto): Promise<any> {
     try {
-      const { email, firstName, lastName, DOB, phoneNo } = updateUserDto;
+      const { email, firstName, lastName, DOB: _DOB, phoneNo } = updateUserDto;
 
       const user = await this.checkIfUserExists(email);
       if (!user) {
@@ -217,12 +228,12 @@ export class AuthService {
       };
 
       const { subject, emailBody } = renderTemplate(emailType, dynamicData);
-      const sendingEmail = await sendEmail({
+      await sendEmail({
         emailAddress: dynamicData.email,
         subject,
         body: emailBody,
       });
-    } catch (err) {
+    } catch {
       callHTTPException("Something went wrong while sending welcome email");
     }
   }
