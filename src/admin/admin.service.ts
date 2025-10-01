@@ -72,14 +72,34 @@ export class AdminService {
       const safeArray = (v: any) => (Array.isArray(v) ? v : v ? [v] : []);
       const isDataUrl = (s: any) => typeof s === 'string' && s.startsWith('data:');
       const normalizeDocEntry = (key: string, value: any) => {
+        // Handle array of documents (like document type "1")
+        if (Array.isArray(value)) {
+          // For arrays, take the first document or return pending if empty
+          const firstDoc = value[0];
+          if (firstDoc && typeof firstDoc === 'object') {
+            const previewUrl = firstDoc.preview || firstDoc.previewUrl || firstDoc.url || firstDoc.fileUrl || null;
+            const downloadUrl = firstDoc.downloadUrl || firstDoc.url || firstDoc.fileUrl || previewUrl || null;
+            const status = firstDoc.status || (previewUrl ? 'uploaded' : 'pending');
+            const type = firstDoc.type || undefined;
+            const name = firstDoc.name || undefined;
+            const size = firstDoc.size || undefined;
+            return { previewUrl, downloadUrl, status, type, name, size };
+          }
+          return { previewUrl: null, downloadUrl: null, status: 'pending' };
+        }
+        
+        // Handle string URLs
         if (typeof value === 'string') {
           if (isDataUrl(value)) {
             return { previewUrl: value, downloadUrl: value, status: 'uploaded' };
           }
           return { previewUrl: value, downloadUrl: value, status: 'uploaded' };
         }
+        
+        // Handle object documents
         if (value && typeof value === 'object') {
-           const previewUrl = value.previewUrl || value.url || value.fileUrl || (isDataUrl(value.base64) ? value.base64 : (value.base64 ? `data:image/png;base64,${value.base64}` : null)) || null;
+           const previewUrl = value.preview || value.previewUrl || value.url || value.fileUrl || 
+                             (isDataUrl(value.base64) ? value.base64 : (value.base64 ? `data:image/png;base64,${value.base64}` : null)) || null;
           const downloadUrl = value.downloadUrl || value.url || value.fileUrl || previewUrl || null;
           const status = value.status || (previewUrl ? 'uploaded' : 'pending');
           const type = value.type || undefined;
@@ -87,6 +107,7 @@ export class AdminService {
           const size = value.size || undefined;
           return { previewUrl, downloadUrl, status, type, name, size };
         }
+        
         return { previewUrl: null, downloadUrl: null, status: 'pending' };
       };
 
@@ -136,8 +157,9 @@ export class AdminService {
             Object.keys(docsContainer).forEach((docKey) => {
               const value = docsContainer[docKey];
               const meta = normalizeDocEntry(docKey, value);
-              const name = meta.name || `Document ${docKey} - ${fullName}`;
-              const type = meta.type || 'document';
+              const documentTypeName = this.getDocumentTypeName(docKey);
+              const name = meta.name || `${documentTypeName} - ${fullName}`;
+              const type = meta.type || this.getDocumentTypeSlug(docKey);
               documents.push({
                 id: `${app.id}-${index}-${String(docKey)}`,
                 applicationId: app.id,
@@ -183,6 +205,23 @@ export class AdminService {
       const out: any[] = [];
       const isDataUrl = (s: any) => typeof s === 'string' && s.startsWith('data:');
       const norm = (key: string, value: any) => {
+        // Handle array of documents (like document type "1")
+        if (Array.isArray(value)) {
+          // For arrays, take the first document or return pending if empty
+          const firstDoc = value[0];
+          if (firstDoc && typeof firstDoc === 'object') {
+            const previewUrl = firstDoc.preview || firstDoc.previewUrl || firstDoc.url || firstDoc.fileUrl || null;
+            const downloadUrl = firstDoc.downloadUrl || firstDoc.url || firstDoc.fileUrl || previewUrl || null;
+            const status = firstDoc.status || (previewUrl ? 'uploaded' : 'pending');
+            const type = firstDoc.type || undefined;
+            const name = firstDoc.name || undefined;
+            const size = firstDoc.size || undefined;
+            return { previewUrl, downloadUrl, status, type, name, size };
+          }
+          return { previewUrl: null, downloadUrl: null, status: 'pending' };
+        }
+        
+        // Handle string URLs
         if (typeof value === 'string') {
           if (isDataUrl(value)) {
             return { previewUrl: value, downloadUrl: value, status: 'uploaded' };
@@ -190,8 +229,11 @@ export class AdminService {
             return { previewUrl: value, downloadUrl: value, status: 'uploaded' };
           }
         }
+        
+        // Handle object documents
         if (value && typeof value === 'object') {
-          const previewUrl = value.previewUrl || value.url || value.fileUrl || (isDataUrl(value.base64) ? value.base64 : (value.base64 ? `data:image/png;base64,${value.base64}` : null)) || null;
+          const previewUrl = value.preview || value.previewUrl || value.url || value.fileUrl || 
+                            (isDataUrl(value.base64) ? value.base64 : (value.base64 ? `data:image/png;base64,${value.base64}` : null)) || null;
           const downloadUrl = value.downloadUrl || value.url || value.fileUrl || previewUrl || null;
           const status = value.status || (previewUrl ? 'uploaded' : 'pending');
           const type = value.type || undefined;
@@ -199,6 +241,7 @@ export class AdminService {
           const size = value.size || undefined;
           return { previewUrl, downloadUrl, status, type, name, size };
         }
+        
         return { previewUrl: null, downloadUrl: null, status: 'pending' };
       };
 
@@ -231,26 +274,25 @@ export class AdminService {
         });
       }
 
-      const docsContainer = traveler?.documents?.documents || traveler?.documents || {};
-      if (docsContainer && typeof docsContainer === 'object') {
-        Object.keys(docsContainer).forEach((docKey) => {
-          const value = docsContainer[docKey];
-          const meta = norm(docKey, value);
-          const name = meta.name || `Document ${docKey} - ${fullName}`;
-          const type = meta.type || 'document';
-          out.push({
-            id: `${applicationId}-${idxNum}-${String(docKey)}`,
-            applicationId,
-            travelerId: traveler?.id ?? idxNum,
-            name,
-            type,
-            uploadedAt: app.createdAt,
-            ...meta,
-          });
-        });
-      }
-
-      return { documents: out };
+          const docsContainer = traveler?.documents?.documents || traveler?.documents || {};
+          if (docsContainer && typeof docsContainer === 'object') {
+            Object.keys(docsContainer).forEach((docKey) => {
+              const value = docsContainer[docKey];
+              const meta = norm(docKey, value);
+              const documentTypeName = this.getDocumentTypeName(docKey);
+              const name = meta.name || `${documentTypeName} - ${fullName}`;
+              const type = meta.type || this.getDocumentTypeSlug(docKey);
+              out.push({
+                id: `${applicationId}-${idxNum}-${String(docKey)}`,
+                applicationId,
+                travelerId: traveler?.id ?? idxNum,
+                name,
+                type,
+                uploadedAt: app.createdAt,
+                ...meta,
+              });
+            });
+          }      return { documents: out };
     } catch (e) {
       console.error('Error fetching traveler documents:', e);
       throw new Error('Failed to fetch traveler documents');
@@ -571,5 +613,47 @@ export class AdminService {
     });
 
     return stats;
+  }
+
+  /**
+   * Map document type IDs to readable names
+   */
+  private getDocumentTypeName(typeId: string): string {
+    const typeMap = {
+      '1': 'Passport Copy',
+      '2': 'Passport Photo',
+      '3': 'Travel Insurance',
+      '4': 'Bank Statement',
+      '5': 'Employment Letter',
+      '6': 'Hotel Booking',
+      '7': 'Flight Booking',
+      '8': 'Cover Letter',
+      '9': 'Additional Document',
+      '10': 'Visa Application Form',
+      '11': 'Financial Proof',
+      '12': 'Invitation Letter'
+    };
+    return typeMap[typeId] || `Document Type ${typeId}`;
+  }
+
+  /**
+   * Map document type IDs to slug names
+   */
+  private getDocumentTypeSlug(typeId: string): string {
+    const typeMap = {
+      '1': 'passport-copy',
+      '2': 'passport-photo',
+      '3': 'travel-insurance',
+      '4': 'bank-statement',
+      '5': 'employment-letter',
+      '6': 'hotel-booking',
+      '7': 'flight-booking',
+      '8': 'cover-letter',
+      '9': 'additional-document',
+      '10': 'visa-application-form',
+      '11': 'financial-proof',
+      '12': 'invitation-letter'
+    };
+    return typeMap[typeId] || 'document';
   }
 }

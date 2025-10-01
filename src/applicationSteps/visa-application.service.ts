@@ -131,12 +131,20 @@ export class VisaApplicationService {
                 documents: {},
               },
               insurance: {
-                insurance: app.insurance || "false",
-                insuranceDetails:
-                  app.insurance === "true" ? { selected: true } : null,
+                insurance: "false", // Default to false for backward compatibility
+                insuranceDetails: null,
                 orderId: null,
                 paymentAmount: null,
                 insurancePaymentCompleted: false,
+              },
+              fullPayment: {
+                paymentStatus: "pending",
+                paymentMethod: "",
+                orderId: null,
+                paymentAmount: null,
+                paymentCompleted: false,
+                includeInsurance: false,
+                insuranceType: "none",
               },
             })
           );
@@ -291,14 +299,20 @@ export class VisaApplicationService {
               documents: {},
             },
             insurance: {
-              insurance: userVisaApplication.insurance || "false",
-              insuranceDetails:
-                userVisaApplication.insurance === "true"
-                  ? { selected: true }
-                  : null,
+              insurance: "false", // Default to false for backward compatibility
+              insuranceDetails: null,
               orderId: null,
               paymentAmount: null,
               insurancePaymentCompleted: false,
+            },
+            fullPayment: {
+              paymentStatus: "pending",
+              paymentMethod: "",
+              orderId: null,
+              paymentAmount: null,
+              paymentCompleted: false,
+              includeInsurance: false,
+              insuranceType: "none",
             },
           })
         );
@@ -448,6 +462,15 @@ export class VisaApplicationService {
                 couponCode: "",
                 discountAmount: 0,
               },
+              fullPayment: {
+                paymentStatus: "pending",
+                paymentMethod: "",
+                orderId: null,
+                paymentAmount: null,
+                paymentCompleted: false,
+                includeInsurance: false,
+                insuranceType: "none",
+              },
             });
           }
         }
@@ -494,7 +517,8 @@ export class VisaApplicationService {
           travelersData: processedTravelersData
             ? JSON.stringify(processedTravelersData)
             : null,
-          insurance: dto.insurance || "false",
+          paymentStatus: dto.paymentStatus || "pending",
+          paymentMethod: dto.paymentMethod || "",
         });
       } else {
         if (!dto.applicationId) {
@@ -824,6 +848,66 @@ export class VisaApplicationService {
           }
         }
 
+        if (dto.type === VisaApplicationStepType.FULL_PAYMENT) {
+          // Handle full payment step - this combines payment processing with insurance selection
+          if (dto.travelersData && Array.isArray(dto.travelersData)) {
+            application.travelersData = JSON.stringify(dto.travelersData);
+          } else if (
+            dto.currentTravelerIndex !== undefined &&
+            travelersData[dto.currentTravelerIndex]
+          ) {
+            const currentTraveler = travelersData[dto.currentTravelerIndex];
+            
+            // Initialize fullPayment object if it doesn't exist
+            if (!currentTraveler.fullPayment) {
+              currentTraveler.fullPayment = {};
+            }
+
+            // Handle payment completion
+            if (dto.paymentStatus === "completed" || dto.paymentStatus === "paid") {
+              currentTraveler.fullPayment.paymentStatus = "completed";
+              currentTraveler.fullPayment.paymentCompleted = true;
+              currentTraveler.fullPayment.paymentDate = dto.paymentDate || new Date().toISOString();
+              
+              if (dto.orderId) {
+                currentTraveler.fullPayment.orderId = dto.orderId;
+              }
+              if (dto.amountPaid) {
+                currentTraveler.fullPayment.paymentAmount = Number(dto.amountPaid);
+              }
+              if (dto.paymentMethod) {
+                currentTraveler.fullPayment.paymentMethod = dto.paymentMethod;
+              }
+
+              // Handle insurance selection within payment
+              if (dto.insurance || (dto as any).includeInsurance) {
+                currentTraveler.fullPayment.includeInsurance = true;
+                currentTraveler.fullPayment.insuranceType = (dto as any).insuranceType || "purchase";
+                
+                if ((dto as any).insuranceCertificate) {
+                  currentTraveler.fullPayment.insuranceCertificate = (dto as any).insuranceCertificate;
+                }
+                if ((dto as any).insuranceDetails) {
+                  currentTraveler.fullPayment.insuranceDetails = (dto as any).insuranceDetails;
+                }
+              }
+            }
+
+            application.travelersData = JSON.stringify(travelersData);
+          }
+
+          this.recalculateAllTravelersSteps(dto.travelersData || travelersData, application);
+          this.checkAndUpdateApplicationStatusForIncompleteTravelers(
+            dto.travelersData || travelersData,
+            application
+          );
+
+          const currentTravelersData = dto.travelersData || travelersData;
+          if (this.areAllTravelersCompleted(currentTravelersData, application)) {
+            application.applicationStatus = "submitted";
+          }
+        }
+
         if (dto.type === VisaApplicationStepType.PAYMENT) {
           const incomingPayment = (dto as any).payment;
 
@@ -1081,9 +1165,8 @@ export class VisaApplicationService {
       VisaApplicationStepType.VISIT_DETAILS,
       VisaApplicationStepType.DOCUMENTS,
       VisaApplicationStepType.APPOINTMENT,
+      VisaApplicationStepType.FULL_PAYMENT,
     ];
-
-    allSteps.push(VisaApplicationStepType.INSURANCE);
 
     const completedSteps = application.completedSteps || [];
     const currentStep =
@@ -1144,7 +1227,7 @@ export class VisaApplicationService {
       VisaApplicationStepType.VISIT_DETAILS,
       VisaApplicationStepType.DOCUMENTS,
       VisaApplicationStepType.APPOINTMENT,
-      VisaApplicationStepType.PAYMENT, // Add payment step
+      VisaApplicationStepType.FULL_PAYMENT, // Replace payment with full_payment
     ];
 
     const paidTravelerCount = application.numberOfTravellers || 1;
@@ -1164,10 +1247,7 @@ export class VisaApplicationService {
           travelerInsurance.paymentAmount) ||
         travelerInsurance.insurance === "true");
 
-    const hasBackwardCompatibilityInsurance =
-      !travelerHasInsurance &&
-      application.insurance &&
-      application.insurance !== "false";
+    const hasBackwardCompatibilityInsurance = false; // Removed since we no longer have application.insurance
 
     const effectivelyHasInsurance =
       travelerHasInsurance || hasBackwardCompatibilityInsurance;
@@ -1217,7 +1297,7 @@ export class VisaApplicationService {
       [VisaApplicationStepType.VISIT_DETAILS]: 50,
       [VisaApplicationStepType.DOCUMENTS]: 66,
       [VisaApplicationStepType.APPOINTMENT]: 83,
-      [VisaApplicationStepType.PAYMENT]: 100,
+      [VisaApplicationStepType.FULL_PAYMENT]: 100,
     };
 
     const hasInsurance = effectivelyHasInsurance;
@@ -1237,7 +1317,7 @@ export class VisaApplicationService {
     const hasBasicCompletion =
       completedSteps.includes(VisaApplicationStepType.DOCUMENTS) &&
       completedSteps.includes(VisaApplicationStepType.APPOINTMENT) &&
-      completedSteps.includes(VisaApplicationStepType.PAYMENT);
+      completedSteps.includes(VisaApplicationStepType.FULL_PAYMENT);
 
     if (needsInsuranceStep) {
       isCompleted =
@@ -1304,6 +1384,12 @@ export class VisaApplicationService {
       completedSteps.push(VisaApplicationStepType.PAYMENT);
     }
 
+    if (
+      this.isFullPaymentComplete(travelerData.fullPayment, application, travelerData)
+    ) {
+      completedSteps.push(VisaApplicationStepType.FULL_PAYMENT);
+    }
+
     if (this.isInsuranceComplete(travelerData.insurance)) {
       completedSteps.push(VisaApplicationStepType.INSURANCE);
     }
@@ -1350,6 +1436,24 @@ export class VisaApplicationService {
     const paymentStatus = payment.paymentStatus;
     const isCompleted =
       paymentStatus === "completed" || paymentStatus === "paid";
+
+    return isCompleted;
+  }
+
+  private isFullPaymentComplete(
+    fullPayment: any,
+    application?: VisaApplication,
+    travelerData?: any
+  ): boolean {
+    if (!fullPayment) {
+      return false;
+    }
+
+    const paymentStatus = fullPayment.paymentStatus;
+    const isCompleted =
+      paymentStatus === "completed" || 
+      paymentStatus === "paid" ||
+      fullPayment.paymentCompleted === true;
 
     return isCompleted;
   }
@@ -1646,10 +1750,7 @@ export class VisaApplicationService {
           traveler.insurance.insurance &&
           traveler.insurance.insurance !== "false";
 
-        const hasBackwardCompatibilityInsurance =
-          !travelerHasInsurance &&
-          application.insurance &&
-          application.insurance !== "false";
+        const hasBackwardCompatibilityInsurance = false; // Removed since we no longer have application.insurance
 
         const effectivelyHasInsurance =
           travelerHasInsurance || hasBackwardCompatibilityInsurance;
@@ -1719,10 +1820,7 @@ export class VisaApplicationService {
         traveler.insurance.insurance &&
         traveler.insurance.insurance !== "false";
 
-      const hasBackwardCompatibilityInsurance =
-        !travelerHasInsurance &&
-        application.insurance &&
-        application.insurance !== "false";
+      const hasBackwardCompatibilityInsurance = false; // Removed since we no longer have application.insurance
 
       const effectivelyHasInsurance =
         travelerHasInsurance || hasBackwardCompatibilityInsurance;

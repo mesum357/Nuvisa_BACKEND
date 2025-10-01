@@ -23,7 +23,11 @@ export class VisaApplication extends Model<VisaApplication> {
 
   @AllowNull(true)
   @Column({ type: DataType.STRING })
-  insurance: string;
+  paymentStatus: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  paymentMethod: string;
 
   @AllowNull(true)
   @Column({ type: DataType.STRING })

@@ -17,6 +17,7 @@ export enum VisaApplicationStepType {
   VISIT_DETAILS = "visitDetails",
   DOCUMENTS = "documents",
   APPOINTMENT = "appointment",
+  FULL_PAYMENT = "fullPayment",
   INSURANCE = "insurance",
   PAYMENT = "payment",
 }
@@ -221,6 +222,46 @@ export class TravelerInsuranceDto {
   insurancePaymentCompleted?: boolean;
 }
 
+export class TravelerFullPaymentDto {
+  @IsOptional()
+  @IsString()
+  paymentStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  paymentAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  paymentDate?: string; // ISO date string when payment was made
+
+  @IsOptional()
+  @IsBoolean()
+  paymentCompleted?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  includeInsurance?: boolean;
+
+  @IsOptional()
+  @IsString()
+  insuranceType?: string; // 'own' | 'purchase' | 'none'
+
+  @IsOptional()
+  insuranceCertificate?: any;
+
+  @IsOptional()
+  insuranceDetails?: any;
+}
+
 export class TravelerPaymentDto {
   @IsOptional()
   @IsNumber()
@@ -289,6 +330,11 @@ export class TravelerDataDto {
 
   @IsOptional()
   @ValidateNested()
+  @Type(() => TravelerFullPaymentDto)
+  fullPayment?: TravelerFullPaymentDto;
+
+  @IsOptional()
+  @ValidateNested()
   @Type(() => TravelerInsuranceDto)
   insurance?: TravelerInsuranceDto;
 
@@ -332,6 +378,14 @@ export class VisaApplicationDto {
   @IsOptional()
   @IsString()
   insurance?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
 
   @IsOptional()
   @IsString()
