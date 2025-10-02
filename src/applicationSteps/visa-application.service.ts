@@ -593,7 +593,6 @@ export class VisaApplicationService {
             travelersData = [];
           }
         }
-
         // Update step information for the specific traveler
         if (
           dto.currentTravelerIndex !== undefined &&
@@ -669,6 +668,7 @@ export class VisaApplicationService {
 
         // No more global step tracking - only traveler-specific stepInfo is managed
 
+
         if (dto.type === VisaApplicationStepType.BASIC_DETAILS) {
           const _dtoForLogging = filterSensitiveDataForLogging(dto);
           const incomingBasic = (dto as any).basicDetails;
@@ -730,7 +730,8 @@ export class VisaApplicationService {
 
         if (dto.type === VisaApplicationStepType.APPOINTMENT) {
           // Handle appointment step - merge incoming appointment data into the current traveler
-          const incomingAppointment = (dto as any).appointment;
+          const incomingAppointment = (dto).appointment;
+          application.appointment = dto.appointment || null
 
           if (incomingAppointment && dto.currentTravelerIndex !== undefined) {
             try {
@@ -1441,10 +1442,8 @@ export class VisaApplicationService {
         travelersData: parsedTravelersData,
         stepInfo: this.getStepInformation(application),
         // include top-level insurance if present on the model instance or JSON
-        insurance:
-          (application as any)?.toJSON?.()?.insurance ||
-          (application as any).insurance ||
-          null,
+        insurance: (application as any)?.toJSON?.()?.insurance || (application as any).insurance || null,
+        appointment: dto.appointment || null,
       };
 
       return {
@@ -1859,7 +1858,9 @@ export class VisaApplicationService {
       completedSteps.push(VisaApplicationStepType.DOCUMENTS);
     }
 
-    if (this.isAppointmentComplete(travelerData.appointment)) {
+    if (this.isAppointmentComplete(
+      application?.appointment
+    )) {
       completedSteps.push(VisaApplicationStepType.APPOINTMENT);
     }
 
@@ -2084,16 +2085,16 @@ export class VisaApplicationService {
   private isDocumentsComplete(documents: any): boolean {
     if (!documents || !documents.documents) return false;
     const requiredDocuments = [
-      { id: 1, minCount: 2 },
-      { id: 2, minCount: 1 },
-      { id: 3, minCount: 1 },
-      { id: 5, minCount: 1 },
+      { id: 1, minCount: 2, field : "passportPhotos" },
+      { id: 2, minCount: 1 , field: "bankStatements"},
+      { id: 3, minCount: 1,field: "employmentProof" },
+      { id: 5, minCount: 1 ,field : "ukVisa"},
     ];
 
     const docs = documents.documents || {};
 
     return requiredDocuments.every((req) => {
-      const doc = docs[req.id];
+      const doc = docs[req.field];
       if (!doc) return false;
       if (req.id === 1) {
         const arr = Array.isArray(doc) ? doc : [doc];

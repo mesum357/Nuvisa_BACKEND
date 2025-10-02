@@ -112,4 +112,8 @@ export class VisaApplication extends Model<VisaApplication> {
   @AllowNull(true)
   @Column({ type: DataType.DATE })
   archivedAt: Date;
+
+  @AllowNull(true)
+  @Column({ type: DataType.JSON })
+  appointment: any; // Application-level appointment information
 }

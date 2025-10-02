@@ -623,4 +623,9 @@ export class VisaApplicationUpdateDto {
   @ValidateNested()
   @Type(() => TravelerFullPaymentDto)
   fullPayment?: TravelerFullPaymentDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TravelerAppointmentDto)
+  appointment: TravelerAppointmentDto
 }
