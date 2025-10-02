@@ -26,6 +26,7 @@ export class StripeService {
 
       let { email, amount, successUrl, cancelUrl, paymentType } = checkoutData;
 
+
       const currency = (checkoutData.currency || "INR")
         .toString()
         .toLowerCase();
@@ -52,6 +53,12 @@ export class StripeService {
         };
       }
 
+      console.log(successUrl, "TEMPPPP=====>")
+
+      const validSuccessUrl = successUrl.replace(/&amp;/g, "&");
+      const validCancelUrl = cancelUrl.replace(/&amp;/g, "&");
+      console.log(validSuccessUrl, "ENCODED TEMPPPP=====>")
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         ...customerEmail,
@@ -72,8 +79,8 @@ export class StripeService {
           },
         ],
         mode: "payment",
-        success_url: `${Env.WEBSITE_URL}${successUrl}`,
-        cancel_url: `${Env.WEBSITE_URL}${cancelUrl}`,
+        success_url: `${Env.WEBSITE_URL}${validSuccessUrl}`,
+        cancel_url: `${Env.WEBSITE_URL}${validCancelUrl}`,
         metadata: {
           ...checkoutData,
         },
@@ -105,9 +112,9 @@ export class StripeService {
         callHTTPException(err.message);
       }
 
-      const visaApiToken = await this.visaService.generateToken();
+      const _visaApiToken = await this.visaService.generateToken();
 
-      const session = event.data.object;
+      const _session = event.data.object;
 
       switch (event.type) {
         case "invoice.created":
@@ -145,7 +152,6 @@ export class StripeService {
         data.metadata.paymentType === "additional_traveler_insurance" ||
         data.metadata.paymentType === "traveler_insurance"
       ) {
-        const travelerIndex = parseInt(data.metadata.travelerIndex);
         const applicationId = data.metadata.applicationId;
         const paymentAmount = Number(
           data.metadata.amountGBP ?? data.metadata.amount
@@ -154,100 +160,124 @@ export class StripeService {
         const orderId = data.metadata.orderId;
         const email = data.metadata.email;
 
-        const travelerIndexValid = !isNaN(travelerIndex) && travelerIndex >= 0;
         const applicationIdValid = !!applicationId;
-        const paymentAmountValid =
-          Number.isFinite(paymentAmount) && paymentAmount > 0;
+        const paymentAmountValid = Number.isFinite(paymentAmount) && paymentAmount > 0;
         const paymentTypeValid = !!paymentType;
         const orderIdValid = !!orderId;
         const emailValid = !!email;
 
-        if (
-          !travelerIndexValid ||
-          !applicationIdValid ||
-          !paymentAmountValid ||
-          !paymentTypeValid ||
-          !orderIdValid ||
-          !emailValid
-        ) {
-          console.error("❌ INSURANCE PAYMENT METADATA INCOMPLETE");
-          console.error("Missing/invalid required metadata:", {
-            travelerIndex: travelerIndexValid
-              ? travelerIndex
-              : data.metadata.travelerIndex,
-            travelerIndexValid,
-            applicationId: applicationIdValid,
-            paymentAmount: paymentAmountValid
-              ? paymentAmount
-              : data.metadata.amount,
-            paymentAmountValid,
-            paymentType: paymentTypeValid,
-            orderId: orderIdValid,
-            email: emailValid,
+        // If travelerIndex is provided, validate and handle single-traveler insurance
+        if (data.metadata.travelerIndex !== undefined && data.metadata.travelerIndex !== null && data.metadata.travelerIndex !== "") {
+          const travelerIndex = parseInt(data.metadata.travelerIndex);
+          const travelerIndexValid = !isNaN(travelerIndex) && travelerIndex >= 0;
+
+          if (
+            !travelerIndexValid ||
+            !applicationIdValid ||
+            !paymentAmountValid ||
+            !paymentTypeValid ||
+            !orderIdValid ||
+            !emailValid
+          ) {
+            console.error("❌ INSURANCE PAYMENT METADATA INCOMPLETE");
+            console.error("Missing/invalid required metadata:", {
+              travelerIndex: travelerIndexValid ? travelerIndex : data.metadata.travelerIndex,
+              travelerIndexValid,
+              applicationId: applicationIdValid,
+              paymentAmount: paymentAmountValid ? paymentAmount : data.metadata.amount,
+              paymentAmountValid,
+              paymentType: paymentTypeValid,
+              orderId: orderIdValid,
+              email: emailValid,
+            });
+            console.error("NOT processing insurance payment - missing or invalid required data");
+
+            return;
+          }
+
+          const application = await VisaApplication.findByPk(applicationId);
+          if (!application) {
+            console.error("Application not found for insurance payment validation");
+            callHTTPException("Application not found");
+          }
+
+          let travelersData = [];
+          if (application.travelersData) {
+            travelersData = JSON.parse(application.travelersData);
+          }
+
+          const currentTraveler = travelersData[travelerIndex];
+          if (!currentTraveler) {
+            console.error(`Traveler ${travelerIndex} not found in application`);
+            callHTTPException("Traveler not found");
+          }
+
+          const expectedInsuranceCost = this.calculateInsuranceCost(currentTraveler, application);
+          const expectedTotalWithFee = expectedInsuranceCost;
+
+          const paymentValid = Math.abs(paymentAmount - expectedTotalWithFee) <= 1;
+
+          if (!paymentValid) {
+            console.error(`❌ INSURANCE PAYMENT AMOUNT MISMATCH: Expected £${expectedTotalWithFee}, received £${paymentAmount}`);
+            console.error("This appears to be a travel-only payment, not insurance payment");
+            console.error("NOT marking insurance as paid to prevent incorrect status");
+
+            return;
+          }
+
+          await this.visaApplicationService.createOrUpdateApplication({
+            type: VisaApplicationStepType.INSURANCE,
+            applicationId: applicationId,
+            currentTravelerIndex: travelerIndex,
+            email: email,
+            amountPaid: paymentAmount.toString(),
+            paymentType: paymentType,
+            orderId: orderId,
+            insurancePaymentCompleted: true,
+            paymentDate: new Date().toISOString(),
           });
-          console.error(
-            "NOT processing insurance payment - missing or invalid required data"
-          );
+        } else {
+          // No travelerIndex provided => application-level insurance payment (covers all travelers)
+          if (!applicationIdValid || !paymentAmountValid || !paymentTypeValid || !orderIdValid || !emailValid) {
+            console.error("❌ APPLICATION-LEVEL INSURANCE PAYMENT METADATA INCOMPLETE");
+            return;
+          }
 
-          return;
+          const application = await VisaApplication.findByPk(applicationId);
+          if (!application) {
+            console.error("Application not found for application-level insurance payment");
+            callHTTPException("Application not found");
+          }
+
+          let travelersData = [];
+          if (application.travelersData) {
+            travelersData = JSON.parse(application.travelersData);
+          }
+
+          // Sum expected insurance cost across all travelers
+          let expectedTotal = 0;
+          for (const trav of travelersData) {
+            expectedTotal += this.calculateInsuranceCost(trav, application);
+          }
+
+          const paymentValid = Math.abs(paymentAmount - expectedTotal) <= 1;
+          if (!paymentValid) {
+            console.error(`❌ APPLICATION-LEVEL INSURANCE PAYMENT AMOUNT MISMATCH: Expected £${expectedTotal}, received £${paymentAmount}`);
+            return;
+          }
+
+          // Mark application-level insurance payment as completed
+          await this.visaApplicationService.createOrUpdateApplication({
+            type: VisaApplicationStepType.INSURANCE,
+            applicationId: applicationId,
+            email: email,
+            amountPaid: paymentAmount.toString(),
+            paymentType: paymentType,
+            orderId: orderId,
+            insurancePaymentCompleted: true,
+            paymentDate: new Date().toISOString(),
+          });
         }
-
-        const application = await VisaApplication.findByPk(
-          data.metadata.applicationId
-        );
-
-        if (!application) {
-          console.error(
-            "Application not found for insurance payment validation"
-          );
-          callHTTPException("Application not found");
-        }
-
-        let travelersData = [];
-        if (application.travelersData) {
-          travelersData = JSON.parse(application.travelersData);
-        }
-
-        const currentTraveler = travelersData[travelerIndex];
-        if (!currentTraveler) {
-          console.error(`Traveler ${travelerIndex} not found in application`);
-          callHTTPException("Traveler not found");
-        }
-
-        const expectedInsuranceCost = this.calculateInsuranceCost(
-          currentTraveler,
-          application
-        );
-        const expectedTotalWithFee = expectedInsuranceCost;
-
-        const paymentValid =
-          Math.abs(paymentAmount - expectedTotalWithFee) <= 1;
-
-        if (!paymentValid) {
-          console.error(
-            `❌ INSURANCE PAYMENT AMOUNT MISMATCH: Expected £${expectedTotalWithFee}, received £${paymentAmount}`
-          );
-          console.error(
-            "This appears to be a travel-only payment, not insurance payment"
-          );
-          console.error(
-            "NOT marking insurance as paid to prevent incorrect status"
-          );
-
-          return;
-        }
-
-        await this.visaApplicationService.createOrUpdateApplication({
-          type: VisaApplicationStepType.INSURANCE,
-          applicationId: data.metadata.applicationId,
-          currentTravelerIndex: travelerIndex,
-          email: data.metadata.email,
-          amountPaid: paymentAmount.toString(),
-          paymentType: data.metadata.paymentType,
-          orderId: data.metadata.orderId,
-          insurancePaymentCompleted: true,
-          paymentDate: new Date().toISOString(),
-        });
       } else {
         await this.visaApplicationService.createOrUpdateApplication({
           type: VisaApplicationStepType.CREATE_APPLICATION,
@@ -266,7 +296,7 @@ export class StripeService {
 
   private calculateInsuranceCost(
     travelerData: any,
-    application: VisaApplication
+    _application: VisaApplication
   ): number {
     const travelStartDate = travelerData?.basicDetails?.travelStartDate;
     const travelEndDate = travelerData?.basicDetails?.travelEndDate;

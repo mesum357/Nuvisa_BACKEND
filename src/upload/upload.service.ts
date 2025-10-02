@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { Env } from "../shared/config";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from "uuid";
 
 @Injectable()
@@ -77,6 +77,66 @@ export class UploadService {
 
       const msg = e?.message || String(e);
       throw new InternalServerErrorException(`Upload failed: ${e?.name || "Error"}: ${msg}`);
+    }
+  }
+
+  async deleteFile(fileUrl: string) {
+    try {
+      // Extract the key from the URL
+      const key = this.extractKeyFromUrl(fileUrl);
+      if (!key) {
+        throw new Error("Invalid file URL: unable to extract key");
+      }
+
+      const params = {
+        Bucket: this.bucket,
+        Key: key,
+      };
+
+      const cmd = new DeleteObjectCommand(params);
+      await this.s3.send(cmd);
+
+      return { success: true, message: "File deleted successfully" };
+    } catch (e) {
+      console.error("UploadService.deleteFile error:", {
+        name: e?.name,
+        message: e?.message,
+        code: e?.code || e?.Code,
+        metadata: e?.$metadata,
+      });
+
+      const msg = e?.message || String(e);
+      throw new InternalServerErrorException(`Delete failed: ${e?.name || "Error"}: ${msg}`);
+    }
+  }
+
+  private extractKeyFromUrl(fileUrl: string): string | null {
+    try {
+      // Handle different URL formats
+      const rawEndpoint = (Env.HETZNER_S3_ENDPOINT || "").replace(/\/$/, "");
+      
+      if (!rawEndpoint) {
+        // AWS S3 URL format: https://bucket.s3.region.amazonaws.com/key
+        const match = fileUrl.match(/https:\/\/[^.]+\.s3\.[^.]+\.amazonaws\.com\/(.+)/);
+        return match ? decodeURIComponent(match[1]) : null;
+      } else {
+        // Custom endpoint URL formats
+        let baseUrl = "";
+        if (/^https?:\/\//i.test(rawEndpoint)) {
+          baseUrl = `${rawEndpoint}/${this.bucket}/`;
+        } else {
+          baseUrl = `https://${this.bucket}.${rawEndpoint}/`;
+        }
+        
+        if (fileUrl.startsWith(baseUrl)) {
+          return decodeURIComponent(fileUrl.substring(baseUrl.length));
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error extracting key from URL:", error);
+      return null;
     }
   }
 }

@@ -8,6 +8,7 @@ import {
   IsArray,
   ValidateNested,
   IsNumber,
+  IsJSON,
 } from "class-validator";
 import { Type } from "class-transformer";
 
@@ -17,6 +18,7 @@ export enum VisaApplicationStepType {
   VISIT_DETAILS = "visitDetails",
   DOCUMENTS = "documents",
   APPOINTMENT = "appointment",
+  FULL_PAYMENT = "fullPayment",
   INSURANCE = "insurance",
   PAYMENT = "payment",
 }
@@ -195,14 +197,18 @@ export class TravelerDocumentsDto {
 
 export class TravelerInsuranceDto {
   @IsOptional()
-  @IsString()
-  insurance?: string;
+  @IsBoolean()
+  insurance?: boolean;
 
   @IsOptional()
   insuranceDetails?: any;
 
   @IsOptional()
-  insuranceCertificate?: any; 
+  insuranceCertificate?: any;
+
+  @IsOptional()
+  @IsArray()
+  insuranceCertificates?: any[];
 
   @IsOptional()
   @IsString()
@@ -219,6 +225,58 @@ export class TravelerInsuranceDto {
   @IsOptional()
   @IsBoolean()
   insurancePaymentCompleted?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  paidInCheckout?: boolean; // Flag to indicate if insurance was paid during checkout
+
+  @IsOptional()
+  @IsString()
+  insuranceSource?: string; // 'checkout' | 'individual' | 'uploaded'
+}
+
+export class TravelerFullPaymentDto {
+  @IsOptional()
+  @IsString()
+  paymentStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  paymentAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  paymentDate?: string; // ISO date string when payment was made
+
+  @IsOptional()
+  @IsBoolean()
+  paymentCompleted?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  includeInsurance?: boolean;
+
+  @IsOptional()
+  @IsString()
+  insuranceType?: string; // 'own' | 'purchase' | 'none'
+
+  @IsOptional()
+  insuranceCertificate?: any;
+
+  @IsOptional()
+  insuranceDetails?: any;
+
+  @IsOptional()
+  @IsBoolean()
+  paidInCheckout?: boolean; // Flag to indicate if full payment was made during checkout
 }
 
 export class TravelerPaymentDto {
@@ -269,8 +327,8 @@ export class TravelerAppointmentDto {
 
 export class TravelerDataDto {
   @IsOptional()
-  @IsNumber()
-  id?: number;
+  @IsString()
+  id?: string;
 
   @IsOptional()
   @ValidateNested()
@@ -286,6 +344,11 @@ export class TravelerDataDto {
   @ValidateNested()
   @Type(() => TravelerDocumentsDto)
   documents?: TravelerDocumentsDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TravelerFullPaymentDto)
+  fullPayment?: TravelerFullPaymentDto;
 
   @IsOptional()
   @ValidateNested()
@@ -323,15 +386,27 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsUUID()
-  applicationId?: string; 
+  applicationId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  paymentWithoutInsurance?: number;
 
   @IsOptional()
   @IsString()
   email?: string;
 
   @IsOptional()
+  @IsBoolean()
+  insurance?: boolean;
+
+  @IsOptional()
   @IsString()
-  insurance?: string;
+  paymentStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
 
   @IsOptional()
   @IsString()
@@ -339,18 +414,38 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsString()
-  visaTypeId?: string; 
+  visaTypeId?: string;
 
   @IsOptional()
   selectedVisaType?: any;
 
   @IsOptional()
   @IsString()
-  orderId?: string; 
+  orderId?: string;
 
   @IsOptional()
   @IsString()
   amountPaid?: string;
+
+  @IsOptional()
+  @IsNumber()
+  initiallyPaidTraveler?: number;
+
+  @IsOptional()
+  @IsNumber()
+  totalTraveler?: number;
+
+  @IsOptional()
+  @IsString()
+  amountPaidTotal?: string;
+
+  @IsOptional()
+  @IsString()
+  initialInsurancePaidTotal?: string;
+
+  @IsOptional()
+  @IsArray()
+  insuranceCertificates?: any[];
 
   @IsOptional()
   @IsString()
@@ -360,7 +455,7 @@ export class VisaApplicationDto {
   insuranceDetails?: any;
 
   @IsOptional()
-  insuranceCertificate?: any; 
+  insuranceCertificate?: any;
 
   @IsOptional()
   @IsBoolean()
@@ -368,10 +463,15 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsString()
-  paymentDate?: string; 
+  paymentDate?: string;
 
   @IsOptional()
-  appointment?: any;    
+  @ValidateNested()
+  @Type(() => TravelerFullPaymentDto)
+  fullPayment?: TravelerFullPaymentDto;
+
+  @IsOptional()
+  appointment?: any;
 
   @IsOptional()
   @IsNumber()
@@ -379,13 +479,13 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsNumber()
-  currentTravelerIndex?: number; 
+  currentTravelerIndex?: number;
 
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => TravelerDataDto)
-  travelersData?: TravelerDataDto[]; 
+  travelersData?: TravelerDataDto[];
 
   @IsOptional()
   @IsString()
@@ -414,4 +514,118 @@ export class VisaApplicationDeleteDto {
   @IsOptional()
   @IsString()
   id: string;
+}
+
+export class VisaApplicationUpdateDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsUUID()
+  applicationId?: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
+  @IsJSON()
+  insurance?: TravelerInsuranceDto;
+
+  @IsOptional()
+  @IsString()
+  paymentStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @IsOptional()
+  @IsString()
+  visaTypeId?: string;
+
+  @IsOptional()
+  selectedVisaType?: any;
+
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @IsOptional()
+  @IsString()
+  amountPaid?: string;
+
+  @IsOptional()
+  @IsNumber()
+  initiallyPaidTraveler?: number;
+
+  @IsOptional()
+  @IsNumber()
+  totalTraveler?: number;
+
+  @IsOptional()
+  @IsString()
+  amountPaidTotal?: string;
+
+  @IsOptional()
+  @IsString()
+  initialInsurancePaidTotal?: string;
+
+  @IsOptional()
+  @IsArray()
+  insuranceCertificates?: any[];
+
+  @IsOptional()
+  @IsString()
+  paymentType?: string;
+
+  @IsOptional()
+  insuranceDetails?: any;
+
+  @IsOptional()
+  insuranceCertificate?: any;
+
+  @IsOptional()
+  @IsBoolean()
+  insurancePaymentCompleted?: boolean;
+
+  @IsOptional()
+  @IsString()
+  paymentDate?: string;
+
+  @IsOptional()
+  stepData?: any;
+  @IsOptional()
+  @IsString()
+  currentStep?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  completedSteps?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TravelerDataDto)
+  travelersData?: TravelerDataDto[];
+
+  @IsOptional()
+  @IsNumber()
+  numberOfTravellers?: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TravelerFullPaymentDto)
+  fullPayment?: TravelerFullPaymentDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TravelerAppointmentDto)
+  appointment: TravelerAppointmentDto
 }

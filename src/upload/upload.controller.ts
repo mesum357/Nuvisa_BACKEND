@@ -1,6 +1,8 @@
 import {
   Controller,
   Post,
+  Delete,
+  Body,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
@@ -34,5 +36,15 @@ export class UploadController {
       file.mimetype
     );
     return { url };
+  }
+
+  @Delete()
+  async deleteFile(@Body() body: { fileUrl: string }) {
+    if (!body.fileUrl) {
+      throw new BadRequestException("File URL is required");
+    }
+
+    const result = await this.uploadService.deleteFile(body.fileUrl);
+    return result;
   }
 }

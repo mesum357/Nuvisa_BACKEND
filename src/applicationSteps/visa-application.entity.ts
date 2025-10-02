@@ -23,7 +23,11 @@ export class VisaApplication extends Model<VisaApplication> {
 
   @AllowNull(true)
   @Column({ type: DataType.STRING })
-  insurance: string;
+  paymentStatus: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  paymentMethod: string;
 
   @AllowNull(true)
   @Column({ type: DataType.STRING })
@@ -44,6 +48,10 @@ export class VisaApplication extends Model<VisaApplication> {
   @AllowNull(true)
   @Column({ type: DataType.STRING })
   amountPaid: string;
+  
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  paymentWithoutInsurance: string;
 
   @AllowNull(true)
   @Column({ type: DataType.STRING })
@@ -54,6 +62,27 @@ export class VisaApplication extends Model<VisaApplication> {
   @Default(1)
   @Column({ type: DataType.INTEGER })
   numberOfTravellers: number;
+
+  @AllowNull(true)
+  @Default(1)
+  @Column({ type: DataType.INTEGER })
+  initiallyPaidTraveler: number; // Number of travelers initially paid for
+
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER })
+  totalTraveler: number; // Total number of travelers (including additional)
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  amountPaidTotal: string; // Total amount paid for all travelers
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  initialInsurancePaidTotal: string; // Total insurance amount paid initially
+
+  @AllowNull(true)
+  @Column({ type: DataType.JSON })
+  insurance: any; // Application-level insurance information
 
   @AllowNull(true)
   @Column({ type: DataType.JSON })
@@ -77,6 +106,14 @@ export class VisaApplication extends Model<VisaApplication> {
   stepData: any; // store step-specific metadata
 
   @AllowNull(true)
+  @Column({ type: DataType.JSON })
+  fullPayment: any; // Application-level full payment information
+
+  @AllowNull(true)
   @Column({ type: DataType.DATE })
   archivedAt: Date;
+
+  @AllowNull(true)
+  @Column({ type: DataType.JSON })
+  appointment: any; // Application-level appointment information
 }
