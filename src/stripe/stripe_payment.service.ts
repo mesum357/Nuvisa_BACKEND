@@ -26,6 +26,7 @@ export class StripeService {
 
       let { email, amount, successUrl, cancelUrl, paymentType } = checkoutData;
 
+
       const currency = (checkoutData.currency || "INR")
         .toString()
         .toLowerCase();
@@ -52,6 +53,12 @@ export class StripeService {
         };
       }
 
+      console.log(successUrl, "TEMPPPP=====>")
+
+      const validSuccessUrl = successUrl.replace(/&amp;/g, "&");
+      const validCancelUrl = cancelUrl.replace(/&amp;/g, "&");
+      console.log(validSuccessUrl, "ENCODED TEMPPPP=====>")
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         ...customerEmail,
@@ -72,8 +79,8 @@ export class StripeService {
           },
         ],
         mode: "payment",
-        success_url: `${Env.WEBSITE_URL}${successUrl}`,
-        cancel_url: `${Env.WEBSITE_URL}${cancelUrl}`,
+        success_url: `${Env.WEBSITE_URL}${validSuccessUrl}`,
+        cancel_url: `${Env.WEBSITE_URL}${validCancelUrl}`,
         metadata: {
           ...checkoutData,
         },

@@ -7,6 +7,7 @@ import {
   Get,
   UseGuards,
   Req,
+  Patch,
 } from "@nestjs/common";
 import { VisaApplicationService } from "./visa-application.service";
 // import { VisaApplicationDto } from "./dto/visa-application.dto";
@@ -18,6 +19,7 @@ import {
   VisaApplicationDeleteDto,
   VisaApplicationDto,
   VisaApplicationStepType,
+  VisaApplicationUpdateDto,
 } from "./dto/visa-application.dto";
 import { AuthGuard } from "src/shared/middlewares/authGuad.middleware";
 
@@ -139,4 +141,27 @@ export class VisaApplicationController {
       callHTTPException(error.message);
     }
   }
+
+  @Patch("update")
+  @UsePipes(ValidationPipe)
+  @UseGuards(AuthGuard)
+  async updateVisaApplication(
+    @Body() visaApplicationUpdateDto: VisaApplicationUpdateDto,
+    @Req() request: string
+  ) {
+    try {
+      const application =
+        await this.visaApplicationService.updateVisaApplication(
+          visaApplicationUpdateDto
+        );
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        application,
+        "Visa application updated successfully"
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
 }
+

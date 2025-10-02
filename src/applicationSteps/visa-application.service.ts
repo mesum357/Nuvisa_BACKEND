@@ -7,6 +7,7 @@ import {
   VisaApplicationDeleteDto,
   VisaApplicationDto,
   VisaApplicationStepType,
+  VisaApplicationUpdateDto,
 } from "./dto/visa-application.dto";
 import { User } from "src/auth/auth.entity";
 
@@ -448,7 +449,7 @@ export class VisaApplicationService {
                 documents: {},
               },
               insurance: {
-                insurance: "",
+                insurance: false,
                 insuranceDetails: null,
                 insuranceCertificate: null,
                 orderId: null,
@@ -490,7 +491,7 @@ export class VisaApplicationService {
                   ...traveler.insurance,
                   insurance: dto.insurance,
                   insuranceDetails:
-                    dto.insurance === "true" ? { selected: true } : null,
+                    dto.insurance === true ? { selected: true } : null,
                 },
               };
             }
@@ -498,7 +499,7 @@ export class VisaApplicationService {
               ...traveler,
               insurance: {
                 ...traveler.insurance,
-                insurance: "false",
+                insurance: false,
                 insuranceDetails: null,
               },
 
@@ -514,7 +515,7 @@ export class VisaApplicationService {
           orderId: dto.orderId, // Store SMV Konveyor order ID
           amountPaid: dto.amountPaid,
           amountPaidTotal: dto.amountPaidTotal || dto.amountPaid, // Total amount paid for all travelers
-          // Compute initialInsurancePaidTotal from travelers data if not explicitly provided
+          paymentWithoutInsurance: dto.paymentWithoutInsurance ,
           initialInsurancePaidTotal:
             dto.initialInsurancePaidTotal ||
             String(
@@ -1296,6 +1297,91 @@ export class VisaApplicationService {
       return {
         application: applicationWithParsedData,
       };
+    } catch (err) {
+      callHTTPException(err.message);
+    }
+  }
+
+  async updateVisaApplication(dto: VisaApplicationUpdateDto) {
+    try {
+      if (!dto || !dto.id) {
+        callHTTPException("application id is required");
+      }
+      
+      let application = await VisaApplication.findByPk(dto.id);
+
+      if (!application) {
+        callHTTPException("Visa application not found");
+      }
+
+      const updatableFields = [
+        "userId",
+        "visaType",
+        "country",
+        "numberOfTravellers",
+        "amountPaid",
+        "applicationStatus",
+        "travelersData",
+        "fullPayment",
+        "initiallyPaidTraveler",
+        "initialPaymentTotal",
+        "initialInsurancePaidTotal",
+        "paymentDueDate",
+        "appointmentDate",
+        "appointmentTime",
+        "consulateLocation",
+        "specialInstructions",
+        "archivedAt",
+        "insuranceCertificates",
+      ];
+
+      updatableFields.forEach((field) => {
+        if (dto[field] !== undefined) {
+          if (field === "fullPayment") {
+            try {
+              const currentFullPayment = application.fullPayment ? JSON.parse(application.fullPayment) : {};
+              const updatedFullPayment = {
+                ...currentFullPayment,
+                ...dto.fullPayment,
+              };
+              application.fullPayment = JSON.stringify(updatedFullPayment);
+            } catch (error) {
+              console.error("Error updating fullPayment field:", error);
+            }
+          } else if (field === "travelersData") {
+            if (Array.isArray(dto.travelersData)) {
+              application.travelersData = JSON.stringify(dto.travelersData);
+            } else if (typeof dto.travelersData === "string") {
+              application.travelersData = dto.travelersData;
+            }
+          } else {
+            (application as any)[field] = dto[field];
+          }
+        }
+      });
+
+      // Recalculate step information if travelersData or numberOfTravellers changed
+      if (dto.travelersData || dto.numberOfTravellers) {
+        let travelersData = [];
+        try {
+          travelersData = application.travelersData ? JSON.parse(application.travelersData) : [];
+        } catch {
+          travelersData = [];
+        }
+
+        this.recalculateAllTravelersSteps(travelersData, application);
+        this.checkAndUpdateApplicationStatusForIncompleteTravelers(
+          travelersData,
+          application
+        );
+      }
+
+      await application.save();
+
+      const appJson = application.toJSON();
+      const { currentStep: _currentStep, completedSteps: _completedSteps, stepProgress: _stepProgress, stepData: _stepData, ...rest } =
+        appJson;
+      return { application: rest };
     } catch (err) {
       callHTTPException(err.message);
     }

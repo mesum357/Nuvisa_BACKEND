@@ -48,6 +48,10 @@ export class VisaApplication extends Model<VisaApplication> {
   @AllowNull(true)
   @Column({ type: DataType.STRING })
   amountPaid: string;
+  
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  paymentWithoutInsurance: string;
 
   @AllowNull(true)
   @Column({ type: DataType.STRING })
@@ -75,6 +79,10 @@ export class VisaApplication extends Model<VisaApplication> {
   @AllowNull(true)
   @Column({ type: DataType.STRING })
   initialInsurancePaidTotal: string; // Total insurance amount paid initially
+
+  @AllowNull(true)
+  @Column({ type: DataType.JSON })
+  insurance: any; // Application-level insurance information
 
   @AllowNull(true)
   @Column({ type: DataType.JSON })
