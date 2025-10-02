@@ -205,7 +205,7 @@ export class VisaApplicationService {
               orderId = firstTraveler.insurance.orderId;
             }
           }
-        } catch { }
+        } catch {}
 
         return {
           ...appWithoutRedundantFields,
@@ -357,7 +357,10 @@ export class VisaApplicationService {
         travelersData: parsedTravelersData,
         stepInfo: this.getStepInformation(userVisaApplication),
         // include top-level insurance if present on the model instance or JSON
-        insurance: (userVisaApplication as any)?.toJSON?.()?.insurance || (userVisaApplication as any).insurance || null,
+        insurance:
+          (userVisaApplication as any)?.toJSON?.()?.insurance ||
+          (userVisaApplication as any).insurance ||
+          null,
       };
 
       return {
@@ -380,8 +383,9 @@ export class VisaApplicationService {
           processedTravelersData = [];
 
           for (let i = 1; i <= numberOfTravelers; i++) {
+            const uniqueId = `traveler_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
             processedTravelersData.push({
-              id: i,
+              id: uniqueId,
               appointment: {
                 preference1: {
                   city: "",
@@ -481,7 +485,6 @@ export class VisaApplicationService {
         }
 
         if (dto.travelersData && dto.insurance) {
-
           processedTravelersData = dto.travelersData.map((traveler, index) => {
             const numberOfPaidTravelers = dto.numberOfTravellers || 1;
             if (index < numberOfPaidTravelers) {
@@ -502,7 +505,6 @@ export class VisaApplicationService {
                 insurance: false,
                 insuranceDetails: null,
               },
-
             };
           });
         }
@@ -515,12 +517,14 @@ export class VisaApplicationService {
           orderId: dto.orderId, // Store SMV Konveyor order ID
           amountPaid: dto.amountPaid,
           amountPaidTotal: dto.amountPaidTotal || dto.amountPaid, // Total amount paid for all travelers
-          paymentWithoutInsurance: dto.paymentWithoutInsurance ,
+          paymentWithoutInsurance: dto.paymentWithoutInsurance,
           initialInsurancePaidTotal:
             dto.initialInsurancePaidTotal ||
             String(
               (processedTravelersData || [])
-                .map((t) => Number(((t || {}).insurance || {}).paymentAmount) || 0)
+                .map(
+                  (t) => Number(((t || {}).insurance || {}).paymentAmount) || 0
+                )
                 .reduce((s, v) => s + v, 0)
             ), // Total insurance paid initially
           applicationStatus: "new",
@@ -528,7 +532,8 @@ export class VisaApplicationService {
           completedSteps: [VisaApplicationStepType.CREATE_APPLICATION],
           stepProgress: 25,
           numberOfTravellers: dto.numberOfTravellers || 1,
-          initiallyPaidTraveler: dto.initiallyPaidTraveler || dto.numberOfTravellers || 1, // Number of travelers initially paid for
+          initiallyPaidTraveler:
+            dto.initiallyPaidTraveler || dto.numberOfTravellers || 1, // Number of travelers initially paid for
           totalTraveler: dto.totalTraveler || dto.numberOfTravellers || 1, // Total number of travelers
           travelersData: processedTravelersData
             ? JSON.stringify(processedTravelersData)
@@ -541,15 +546,24 @@ export class VisaApplicationService {
               if (travelers.length === 0) return null;
               // If all travelers share same orderId/paymentAmount, create a common object
               const totalInsurance = travelers
-                .map((t) => Number(((t || {}).insurance || {}).paymentAmount) || 0)
+                .map(
+                  (t) => Number(((t || {}).insurance || {}).paymentAmount) || 0
+                )
                 .reduce((s, v) => s + v, 0);
-              const anyOrderId = travelers.find((t) => t.insurance && t.insurance.orderId)?.insurance?.orderId || null;
-              const allPaid = travelers.every((t) => (t.insurance && t.insurance.insurancePaymentCompleted) === true);
+              const anyOrderId =
+                travelers.find((t) => t.insurance && t.insurance.orderId)
+                  ?.insurance?.orderId || null;
+              const allPaid = travelers.every(
+                (t) =>
+                  (t.insurance && t.insurance.insurancePaymentCompleted) ===
+                  true
+              );
               return {
                 insurancePaymentCompleted: allPaid,
                 orderId: anyOrderId,
                 paymentAmount: totalInsurance,
-                insuranceCertificates: (dto as any).insuranceCertificates || null,
+                insuranceCertificates:
+                  (dto as any).insuranceCertificates || null,
                 paymentSource: (dto as any).paymentSource || null,
               };
             } catch {
@@ -811,11 +825,15 @@ export class VisaApplicationService {
                   currentTraveler.insurance.paymentDate = dto.paymentDate;
                 }
                 if (dto.amountPaid) {
-                  currentTraveler.insurance.paymentAmount = Number(dto.amountPaid);
+                  currentTraveler.insurance.paymentAmount = Number(
+                    dto.amountPaid
+                  );
                 }
 
                 if ((dto as any).paymentSource) {
-                  currentTraveler.insurance.paymentSource = (dto as any).paymentSource;
+                  currentTraveler.insurance.paymentSource = (
+                    dto as any
+                  ).paymentSource;
                 }
 
                 currentTraveler.insurance.insuranceDetails = {
@@ -824,34 +842,61 @@ export class VisaApplicationService {
                   paymentType: dto.paymentType,
                 };
 
-                if (dto.insuranceCertificates && Array.isArray(dto.insuranceCertificates)) {
-                  currentTraveler.insurance.insuranceCertificates = dto.insuranceCertificates;
+                if (
+                  dto.insuranceCertificates &&
+                  Array.isArray(dto.insuranceCertificates)
+                ) {
+                  currentTraveler.insurance.insuranceCertificates =
+                    dto.insuranceCertificates;
                   application.insuranceCertificates = dto.insuranceCertificates;
                 }
               }
 
               application.travelersData = JSON.stringify(travelersData);
               // Update application-level totals
-              application.amountPaid = String(Number(application.amountPaid || 0) + addAmount);
+              application.amountPaid = String(
+                Number(application.amountPaid || 0) + addAmount
+              );
               application.initialInsurancePaidTotal = String(
-                (JSON.parse(application.travelersData || '[]') as any[])
-                  .map((t) => Number(((t || {}).insurance || {}).paymentAmount) || 0)
+                (JSON.parse(application.travelersData || "[]") as any[])
+                  .map(
+                    (t) =>
+                      Number(((t || {}).insurance || {}).paymentAmount) || 0
+                  )
                   .reduce((s, v) => s + v, 0)
               );
 
               try {
-                const parsedAppTrav = JSON.parse(application.travelersData || '[]');
+                const parsedAppTrav = JSON.parse(
+                  application.travelersData || "[]"
+                );
                 const totalInsurance = parsedAppTrav
-                  .map((t: any) => Number(((t || {}).insurance || {}).paymentAmount) || 0)
+                  .map(
+                    (t: any) =>
+                      Number(((t || {}).insurance || {}).paymentAmount) || 0
+                  )
                   .reduce((s: number, v: number) => s + v, 0);
-                const allPaid = parsedAppTrav.every((t: any) => (t.insurance && t.insurance.insurancePaymentCompleted) === true);
-                const anyOrder = parsedAppTrav.find((t: any) => t.insurance && t.insurance.orderId)?.insurance?.orderId || null;
-                const anyPaymentSource = parsedAppTrav.find((t: any) => t.insurance && t.insurance.paymentSource)?.insurance?.paymentSource || (dto as any).paymentSource || null;
+                const allPaid = parsedAppTrav.every(
+                  (t: any) =>
+                    (t.insurance && t.insurance.insurancePaymentCompleted) ===
+                    true
+                );
+                const anyOrder =
+                  parsedAppTrav.find(
+                    (t: any) => t.insurance && t.insurance.orderId
+                  )?.insurance?.orderId || null;
+                const anyPaymentSource =
+                  parsedAppTrav.find(
+                    (t: any) => t.insurance && t.insurance.paymentSource
+                  )?.insurance?.paymentSource ||
+                  (dto as any).paymentSource ||
+                  null;
                 (application as any).insurance = {
                   insurancePaymentCompleted: allPaid,
                   orderId: anyOrder,
                   paymentAmount: totalInsurance,
-                  insuranceCertificates: application.insuranceCertificates || null,
+                  insuranceCertificates:
+                    application.insuranceCertificates || null,
                   paymentSource: anyPaymentSource,
                 };
               } catch {
@@ -883,24 +928,47 @@ export class VisaApplicationService {
               application.travelersData = JSON.stringify(incoming);
 
               // If application-level insuranceCertificates passed, persist them
-              if ((dto as any).insuranceCertificates && Array.isArray((dto as any).insuranceCertificates)) {
-                application.insuranceCertificates = (dto as any).insuranceCertificates;
+              if (
+                (dto as any).insuranceCertificates &&
+                Array.isArray((dto as any).insuranceCertificates)
+              ) {
+                application.insuranceCertificates = (
+                  dto as any
+                ).insuranceCertificates;
               }
 
               // Sync top-level application.insurance from incoming travelers
               try {
-                const parsedIncoming = JSON.parse(application.travelersData || '[]');
+                const parsedIncoming = JSON.parse(
+                  application.travelersData || "[]"
+                );
                 const totalInsurance = parsedIncoming
-                  .map((t: any) => Number(((t || {}).insurance || {}).paymentAmount) || 0)
+                  .map(
+                    (t: any) =>
+                      Number(((t || {}).insurance || {}).paymentAmount) || 0
+                  )
                   .reduce((s: number, v: number) => s + v, 0);
-                const allPaid = parsedIncoming.every((t: any) => (t.insurance && t.insurance.insurancePaymentCompleted) === true);
-                const anyOrder = parsedIncoming.find((t: any) => t.insurance && t.insurance.orderId)?.insurance?.orderId || null;
-                const anyPaymentSource = parsedIncoming.find((t: any) => t.insurance && t.insurance.paymentSource)?.insurance?.paymentSource || (dto as any).paymentSource || null;
+                const allPaid = parsedIncoming.every(
+                  (t: any) =>
+                    (t.insurance && t.insurance.insurancePaymentCompleted) ===
+                    true
+                );
+                const anyOrder =
+                  parsedIncoming.find(
+                    (t: any) => t.insurance && t.insurance.orderId
+                  )?.insurance?.orderId || null;
+                const anyPaymentSource =
+                  parsedIncoming.find(
+                    (t: any) => t.insurance && t.insurance.paymentSource
+                  )?.insurance?.paymentSource ||
+                  (dto as any).paymentSource ||
+                  null;
                 (application as any).insurance = {
                   insurancePaymentCompleted: allPaid,
                   orderId: anyOrder,
                   paymentAmount: totalInsurance,
-                  insuranceCertificates: application.insuranceCertificates || null,
+                  insuranceCertificates:
+                    application.insuranceCertificates || null,
                   paymentSource: anyPaymentSource,
                 };
               } catch {
@@ -926,15 +994,21 @@ export class VisaApplicationService {
                 currentTraveler.insurance.insurance = dto.insurance || "false";
 
                 if (dto.insuranceDetails) {
-                  currentTraveler.insurance.insuranceDetails = dto.insuranceDetails;
+                  currentTraveler.insurance.insuranceDetails =
+                    dto.insuranceDetails;
                 }
 
                 if (dto.insuranceCertificate) {
-                  currentTraveler.insurance.insuranceCertificate = dto.insuranceCertificate;
+                  currentTraveler.insurance.insuranceCertificate =
+                    dto.insuranceCertificate;
                 }
 
-                if (dto.insuranceCertificates && Array.isArray(dto.insuranceCertificates)) {
-                  currentTraveler.insurance.insuranceCertificates = dto.insuranceCertificates;
+                if (
+                  dto.insuranceCertificates &&
+                  Array.isArray(dto.insuranceCertificates)
+                ) {
+                  currentTraveler.insurance.insuranceCertificates =
+                    dto.insuranceCertificates;
                   application.insuranceCertificates = dto.insuranceCertificates;
                 }
               }
@@ -949,25 +1023,37 @@ export class VisaApplicationService {
           }
 
           // If DTO indicates application-level insurancePaymentCompleted, mark all travelers as paid and distribute amounts
-          if (dto.insurancePaymentCompleted === true && !dto.currentTravelerIndex) {
+          if (
+            dto.insurancePaymentCompleted === true &&
+            !dto.currentTravelerIndex
+          ) {
             const addAmount = Number(dto.amountPaid) || 0;
             let parsed = [] as any[];
             try {
-              parsed = application.travelersData ? JSON.parse(application.travelersData) : [];
+              parsed = application.travelersData
+                ? JSON.parse(application.travelersData)
+                : [];
             } catch {
               parsed = travelersData;
             }
 
             // Compute per-traveler expected cost and set paymentAmount
-            const perTravelerCosts = parsed.map((t) => this.calculateInsuranceCost(t, application));
+            const perTravelerCosts = parsed.map((t) =>
+              this.calculateInsuranceCost(t, application)
+            );
             // Optionally distribute addAmount proportionally, but prefer expected cost
             parsed = parsed.map((t, idx) => {
               if (!t.insurance) t.insurance = {};
               t.insurance.insurance = "true";
               t.insurance.insurancePaymentCompleted = true;
               t.insurance.paymentAmount = perTravelerCosts[idx];
-              if ((dto as any).insuranceCertificates && Array.isArray((dto as any).insuranceCertificates)) {
-                t.insurance.insuranceCertificates = (dto as any).insuranceCertificates;
+              if (
+                (dto as any).insuranceCertificates &&
+                Array.isArray((dto as any).insuranceCertificates)
+              ) {
+                t.insurance.insuranceCertificates = (
+                  dto as any
+                ).insuranceCertificates;
               }
               // persist payment source per traveler when provided
               if ((dto as any).paymentSource) {
@@ -977,25 +1063,42 @@ export class VisaApplicationService {
             });
 
             application.travelersData = JSON.stringify(parsed);
-            application.amountPaid = String(Number(application.amountPaid || 0) + addAmount);
+            application.amountPaid = String(
+              Number(application.amountPaid || 0) + addAmount
+            );
             application.initialInsurancePaidTotal = String(
-              parsed.map((t) => Number(((t || {}).insurance || {}).paymentAmount) || 0).reduce((s, v) => s + v, 0)
+              parsed
+                .map(
+                  (t) => Number(((t || {}).insurance || {}).paymentAmount) || 0
+                )
+                .reduce((s, v) => s + v, 0)
             );
 
-            if ((dto as any).insuranceCertificates && Array.isArray((dto as any).insuranceCertificates)) {
-              application.insuranceCertificates = (dto as any).insuranceCertificates;
+            if (
+              (dto as any).insuranceCertificates &&
+              Array.isArray((dto as any).insuranceCertificates)
+            ) {
+              application.insuranceCertificates = (
+                dto as any
+              ).insuranceCertificates;
             }
 
             // Sync top-level application.insurance for application-level payment
             try {
               const totalInsurance = parsed
-                .map((t: any) => Number(((t || {}).insurance || {}).paymentAmount) || 0)
+                .map(
+                  (t: any) =>
+                    Number(((t || {}).insurance || {}).paymentAmount) || 0
+                )
                 .reduce((s: number, v: number) => s + v, 0);
               (application as any).insurance = {
                 insurancePaymentCompleted: true,
                 orderId: dto.orderId || null,
                 paymentAmount: totalInsurance,
-                insuranceCertificates: (dto as any).insuranceCertificates || application.insuranceCertificates || null,
+                insuranceCertificates:
+                  (dto as any).insuranceCertificates ||
+                  application.insuranceCertificates ||
+                  null,
                 paymentSource: (dto as any).paymentSource || null,
               };
             } catch {
@@ -1003,14 +1106,21 @@ export class VisaApplicationService {
             }
           }
 
-          const currentTravelersData = dto.travelersData || (application.travelersData ? JSON.parse(application.travelersData) : travelersData);
-          if (this.areAllTravelersCompleted(currentTravelersData, application)) {
+          const currentTravelersData =
+            dto.travelersData ||
+            (application.travelersData
+              ? JSON.parse(application.travelersData)
+              : travelersData);
+          if (
+            this.areAllTravelersCompleted(currentTravelersData, application)
+          ) {
             application.applicationStatus = "submitted";
           } else {
-            const hasUnpaidAdditionalTravelers = this.checkForUnpaidAdditionalTravelers(
-              currentTravelersData,
-              application
-            );
+            const hasUnpaidAdditionalTravelers =
+              this.checkForUnpaidAdditionalTravelers(
+                currentTravelersData,
+                application
+              );
             if (hasUnpaidAdditionalTravelers) {
               application.applicationStatus = "payment_required";
             }
@@ -1033,27 +1143,39 @@ export class VisaApplicationService {
             }
 
             // Handle payment completion
-            if (dto.paymentStatus === "completed" || dto.paymentStatus === "paid") {
+            if (
+              dto.paymentStatus === "completed" ||
+              dto.paymentStatus === "paid"
+            ) {
               // Only treat this as a completed FULL_PAYMENT when the DTO explicitly
               // indicates a full payment (includeInsurance true, explicit isFullPayment flag,
               // or paymentType === 'full_payment'). This avoids marking FULL_PAYMENT
               // completed for insurance-only payments.
-              const isExplicitFullPayment = (dto as any).includeInsurance === true || (dto as any).isFullPayment === true || (dto as any).paymentType === 'full_payment';
+              const isExplicitFullPayment =
+                (dto as any).includeInsurance === true ||
+                (dto as any).isFullPayment === true ||
+                (dto as any).paymentType === "full_payment";
 
               if (isExplicitFullPayment) {
                 currentTraveler.fullPayment.paymentStatus = "completed";
                 currentTraveler.fullPayment.paymentCompleted = true;
-                currentTraveler.fullPayment.paymentDate = dto.paymentDate || new Date().toISOString();
+                currentTraveler.fullPayment.paymentDate =
+                  dto.paymentDate || new Date().toISOString();
               } else {
                 // Not a full payment — set only non-state-changing fields, do not mark completed
-                currentTraveler.fullPayment.paymentDate = dto.paymentDate || currentTraveler.fullPayment.paymentDate || new Date().toISOString();
+                currentTraveler.fullPayment.paymentDate =
+                  dto.paymentDate ||
+                  currentTraveler.fullPayment.paymentDate ||
+                  new Date().toISOString();
               }
 
               if (dto.orderId) {
                 currentTraveler.fullPayment.orderId = dto.orderId;
               }
               if (dto.amountPaid) {
-                currentTraveler.fullPayment.paymentAmount = Number(dto.amountPaid);
+                currentTraveler.fullPayment.paymentAmount = Number(
+                  dto.amountPaid
+                );
               }
               if (dto.paymentMethod) {
                 currentTraveler.fullPayment.paymentMethod = dto.paymentMethod;
@@ -1062,18 +1184,31 @@ export class VisaApplicationService {
               // Handle insurance selection within payment
               if (dto.insurance || (dto as any).includeInsurance) {
                 currentTraveler.fullPayment.includeInsurance = true;
-                currentTraveler.fullPayment.insuranceType = (dto as any).insuranceType || "purchase";
+                currentTraveler.fullPayment.insuranceType =
+                  (dto as any).insuranceType || "purchase";
 
                 if ((dto as any).insuranceCertificate) {
-                  currentTraveler.fullPayment.insuranceCertificate = (dto as any).insuranceCertificate;
+                  currentTraveler.fullPayment.insuranceCertificate = (
+                    dto as any
+                  ).insuranceCertificate;
                 }
                 if ((dto as any).insuranceDetails) {
-                  currentTraveler.fullPayment.insuranceDetails = (dto as any).insuranceDetails;
+                  currentTraveler.fullPayment.insuranceDetails = (
+                    dto as any
+                  ).insuranceDetails;
                 }
-                if ((dto as any).insuranceCertificates && Array.isArray((dto as any).insuranceCertificates)) {
-                  currentTraveler.fullPayment.insuranceCertificates = (dto as any).insuranceCertificates;
-                  if (!currentTraveler.insurance) currentTraveler.insurance = {};
-                  currentTraveler.insurance.insuranceCertificates = (dto as any).insuranceCertificates;
+                if (
+                  (dto as any).insuranceCertificates &&
+                  Array.isArray((dto as any).insuranceCertificates)
+                ) {
+                  currentTraveler.fullPayment.insuranceCertificates = (
+                    dto as any
+                  ).insuranceCertificates;
+                  if (!currentTraveler.insurance)
+                    currentTraveler.insurance = {};
+                  currentTraveler.insurance.insuranceCertificates = (
+                    dto as any
+                  ).insuranceCertificates;
                 }
               }
             }
@@ -1083,25 +1218,35 @@ export class VisaApplicationService {
 
           if (dto.fullPayment) {
             try {
-              const currentFullPayment = application.fullPayment ? JSON.parse(application.fullPayment) : {};
+              const currentFullPayment = application.fullPayment
+                ? JSON.parse(application.fullPayment)
+                : {};
               const updatedFullPayment = {
                 ...currentFullPayment,
                 ...dto.fullPayment,
               };
               application.fullPayment = JSON.stringify(updatedFullPayment);
             } catch (error) {
-              console.error("Error handling application-level fullPayment:", error);
+              console.error(
+                "Error handling application-level fullPayment:",
+                error
+              );
             }
           }
 
-          this.recalculateAllTravelersSteps(dto.travelersData || travelersData, application);
+          this.recalculateAllTravelersSteps(
+            dto.travelersData || travelersData,
+            application
+          );
           this.checkAndUpdateApplicationStatusForIncompleteTravelers(
             dto.travelersData || travelersData,
             application
           );
 
           const currentTravelersData = dto.travelersData || travelersData;
-          if (this.areAllTravelersCompleted(currentTravelersData, application)) {
+          if (
+            this.areAllTravelersCompleted(currentTravelersData, application)
+          ) {
             application.applicationStatus = "submitted";
           }
         }
@@ -1204,12 +1349,15 @@ export class VisaApplicationService {
                 currentTraveler.payment.paymentDate =
                   incomingPayment.paymentDate || new Date().toISOString();
                 // Mirror into fullPayment for unified flow
-                if (!currentTraveler.fullPayment) currentTraveler.fullPayment = {};
+                if (!currentTraveler.fullPayment)
+                  currentTraveler.fullPayment = {};
                 currentTraveler.fullPayment.paymentStatus = "completed";
                 currentTraveler.fullPayment.paymentCompleted = true;
-                currentTraveler.fullPayment.paymentDate = currentTraveler.payment.paymentDate;
+                currentTraveler.fullPayment.paymentDate =
+                  currentTraveler.payment.paymentDate;
                 currentTraveler.fullPayment.paymentAmount =
-                  incomingPayment.amountPaid || currentTraveler.payment.amountPaid;
+                  incomingPayment.amountPaid ||
+                  currentTraveler.payment.amountPaid;
               } else if (status === "processing" || status === "pending") {
                 currentTraveler.payment.paymentStatus = "processing";
               }
@@ -1250,26 +1398,28 @@ export class VisaApplicationService {
           parsedTravelersData = JSON.parse(application.travelersData);
 
           if (Array.isArray(parsedTravelersData)) {
-            parsedTravelersData = parsedTravelersData.map((traveler, _index) => {
-              const travelerStepInfo = this.getTravelerStepInformation(
-                traveler,
-                application
-              );
+            parsedTravelersData = parsedTravelersData.map(
+              (traveler, _index) => {
+                const travelerStepInfo = this.getTravelerStepInformation(
+                  traveler,
+                  application
+                );
 
-              const {
-                currentStep: _currentStep,
-                completedSteps: _completedSteps,
-                completed: _completed,
-                ...cleanTravelerData
-              } = traveler;
+                const {
+                  currentStep: _currentStep,
+                  completedSteps: _completedSteps,
+                  completed: _completed,
+                  ...cleanTravelerData
+                } = traveler;
 
-              const finalTravelerData = {
-                ...cleanTravelerData,
-                stepInfo: travelerStepInfo,
-              };
+                const finalTravelerData = {
+                  ...cleanTravelerData,
+                  stepInfo: travelerStepInfo,
+                };
 
-              return finalTravelerData;
-            });
+                return finalTravelerData;
+              }
+            );
           }
         } catch (error) {
           console.error("Error parsing travelersData:", error);
@@ -1291,7 +1441,10 @@ export class VisaApplicationService {
         travelersData: parsedTravelersData,
         stepInfo: this.getStepInformation(application),
         // include top-level insurance if present on the model instance or JSON
-        insurance: (application as any)?.toJSON?.()?.insurance || (application as any).insurance || null,
+        insurance:
+          (application as any)?.toJSON?.()?.insurance ||
+          (application as any).insurance ||
+          null,
       };
 
       return {
@@ -1307,7 +1460,7 @@ export class VisaApplicationService {
       if (!dto || !dto.id) {
         callHTTPException("application id is required");
       }
-      
+
       let application = await VisaApplication.findByPk(dto.id);
 
       if (!application) {
@@ -1339,7 +1492,9 @@ export class VisaApplicationService {
         if (dto[field] !== undefined) {
           if (field === "fullPayment") {
             try {
-              const currentFullPayment = application.fullPayment ? JSON.parse(application.fullPayment) : {};
+              const currentFullPayment = application.fullPayment
+                ? JSON.parse(application.fullPayment)
+                : {};
               const updatedFullPayment = {
                 ...currentFullPayment,
                 ...dto.fullPayment,
@@ -1364,7 +1519,9 @@ export class VisaApplicationService {
       if (dto.travelersData || dto.numberOfTravellers) {
         let travelersData = [];
         try {
-          travelersData = application.travelersData ? JSON.parse(application.travelersData) : [];
+          travelersData = application.travelersData
+            ? JSON.parse(application.travelersData)
+            : [];
         } catch {
           travelersData = [];
         }
@@ -1379,8 +1536,13 @@ export class VisaApplicationService {
       await application.save();
 
       const appJson = application.toJSON();
-      const { currentStep: _currentStep, completedSteps: _completedSteps, stepProgress: _stepProgress, stepData: _stepData, ...rest } =
-        appJson;
+      const {
+        currentStep: _currentStep,
+        completedSteps: _completedSteps,
+        stepProgress: _stepProgress,
+        stepData: _stepData,
+        ...rest
+      } = appJson;
       return { application: rest };
     } catch (err) {
       callHTTPException(err.message);
@@ -1420,8 +1582,13 @@ export class VisaApplicationService {
       await application.save();
 
       const appJson = application.toJSON();
-      const { currentStep: _currentStep, completedSteps: _completedSteps, stepProgress: _stepProgress, stepData: _stepData, ...rest } =
-        appJson;
+      const {
+        currentStep: _currentStep,
+        completedSteps: _completedSteps,
+        stepProgress: _stepProgress,
+        stepData: _stepData,
+        ...rest
+      } = appJson;
       return { application: rest };
     } catch (err) {
       callHTTPException(err.message);
@@ -1443,8 +1610,13 @@ export class VisaApplicationService {
       await application.save();
 
       const appJson = application.toJSON();
-      const { currentStep: _currentStep, completedSteps: _completedSteps, stepProgress: _stepProgress, stepData: _stepData, ...rest } =
-        appJson;
+      const {
+        currentStep: _currentStep,
+        completedSteps: _completedSteps,
+        stepProgress: _stepProgress,
+        stepData: _stepData,
+        ...rest
+      } = appJson;
       return { application: rest };
     } catch (err) {
       callHTTPException(err.message);
@@ -1551,7 +1723,8 @@ export class VisaApplicationService {
 
     const travelerIndex = travelerData.id ? parseInt(travelerData.id) - 1 : 0;
     // Only travelers beyond the initially paid count are considered additional
-    const initiallyPaidCount = application.initiallyPaidTraveler || application.numberOfTravellers || 1;
+    const initiallyPaidCount =
+      application.initiallyPaidTraveler || application.numberOfTravellers || 1;
     const isAdditionalTraveler = travelerIndex >= initiallyPaidCount;
 
     const travelerInsurance = travelerData.insurance;
@@ -1781,7 +1954,10 @@ export class VisaApplicationService {
     // mark FULL_PAYMENT as complete.
     try {
       const paidAmount = Number(fullPayment.paymentAmount);
-      const expectedInsurance = this.calculateInsuranceCost(_travelerData, _application as any);
+      const expectedInsurance = this.calculateInsuranceCost(
+        _travelerData,
+        _application as any
+      );
       if (!isNaN(paidAmount) && Math.abs(paidAmount - expectedInsurance) <= 1) {
         return false;
       }
@@ -2027,7 +2203,10 @@ export class VisaApplicationService {
       return true;
     }
 
-    const expectedCost = this.calculateInsuranceCost(travelerData, _application);
+    const expectedCost = this.calculateInsuranceCost(
+      travelerData,
+      _application
+    );
     const paidAmount = insurance.paymentAmount;
 
     const isValidAmount =
@@ -2060,7 +2239,8 @@ export class VisaApplicationService {
       return;
     }
 
-    const paidTravelerCount = application.initiallyPaidTraveler || application.numberOfTravellers || 1;
+    const paidTravelerCount =
+      application.initiallyPaidTraveler || application.numberOfTravellers || 1;
     const currentTravelerCount = travelersData.length;
 
     if (currentTravelerCount > paidTravelerCount) {
@@ -2134,7 +2314,8 @@ export class VisaApplicationService {
     travelersData: any[],
     application: VisaApplication
   ): void {
-    const initiallyPaidCount = application.initiallyPaidTraveler || application.numberOfTravellers || 1;
+    const initiallyPaidCount =
+      application.initiallyPaidTraveler || application.numberOfTravellers || 1;
 
     travelersData.forEach((traveler, index) => {
       // Travelers beyond the initially paid count are considered additional
@@ -2255,10 +2436,16 @@ export class VisaApplicationService {
       const appCompletedSteps: string[] = [];
 
       for (const step of appAllSteps) {
-        const everyoneHasStep = paidTravelers.length > 0 && paidTravelers.every((t) => {
-          const tsi = t.stepInfo || this.getTravelerStepInformation(t, application);
-          return Array.isArray(tsi.completedSteps) && tsi.completedSteps.includes(step);
-        });
+        const everyoneHasStep =
+          paidTravelers.length > 0 &&
+          paidTravelers.every((t) => {
+            const tsi =
+              t.stepInfo || this.getTravelerStepInformation(t, application);
+            return (
+              Array.isArray(tsi.completedSteps) &&
+              tsi.completedSteps.includes(step)
+            );
+          });
 
         if (everyoneHasStep) {
           appCompletedSteps.push(step);
@@ -2268,7 +2455,12 @@ export class VisaApplicationService {
       // If no paid travelers or no steps completed, ensure at least CREATE_APPLICATION when present
       if (appCompletedSteps.length === 0 && application.createdAt) {
         // keep as empty or push create application? Only push if application already had this
-        if (application.completedSteps && application.completedSteps.includes(VisaApplicationStepType.CREATE_APPLICATION)) {
+        if (
+          application.completedSteps &&
+          application.completedSteps.includes(
+            VisaApplicationStepType.CREATE_APPLICATION
+          )
+        ) {
           appCompletedSteps.push(VisaApplicationStepType.CREATE_APPLICATION);
         }
       }
@@ -2322,7 +2514,8 @@ export class VisaApplicationService {
       return false;
     }
 
-    const initiallyPaidCount = application.initiallyPaidTraveler || application.numberOfTravellers || 1;
+    const initiallyPaidCount =
+      application.initiallyPaidTraveler || application.numberOfTravellers || 1;
 
     for (let i = initiallyPaidCount; i < travelersData.length; i++) {
       const traveler = travelersData[i];

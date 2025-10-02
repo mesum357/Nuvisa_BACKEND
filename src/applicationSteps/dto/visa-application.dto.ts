@@ -235,7 +235,6 @@ export class TravelerInsuranceDto {
   insuranceSource?: string; // 'checkout' | 'individual' | 'uploaded'
 }
 
-
 export class TravelerFullPaymentDto {
   @IsOptional()
   @IsString()
@@ -328,8 +327,8 @@ export class TravelerAppointmentDto {
 
 export class TravelerDataDto {
   @IsOptional()
-  @IsNumber()
-  id?: number;
+  @IsString()
+  id?: string;
 
   @IsOptional()
   @ValidateNested()
@@ -518,7 +517,6 @@ export class VisaApplicationDeleteDto {
 }
 
 export class VisaApplicationUpdateDto {
-
   @IsOptional()
   @IsString()
   id?: string;
@@ -530,7 +528,7 @@ export class VisaApplicationUpdateDto {
   @IsOptional()
   @IsString()
   email?: string;
-  
+
   @IsOptional()
   @IsJSON()
   insurance?: TravelerInsuranceDto;
@@ -553,7 +551,7 @@ export class VisaApplicationUpdateDto {
 
   @IsOptional()
   selectedVisaType?: any;
-  
+
   @IsOptional()
   @IsString()
   orderId?: string;
@@ -599,13 +597,13 @@ export class VisaApplicationUpdateDto {
   @IsOptional()
   @IsString()
   paymentDate?: string;
-  
+
   @IsOptional()
   stepData?: any;
   @IsOptional()
   @IsString()
   currentStep?: string;
-  
+
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
