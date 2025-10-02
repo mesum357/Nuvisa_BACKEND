@@ -60,6 +60,23 @@ export class VisaApplication extends Model<VisaApplication> {
   numberOfTravellers: number;
 
   @AllowNull(true)
+  @Default(1)
+  @Column({ type: DataType.INTEGER })
+  initiallyPaidTraveler: number; // Number of travelers initially paid for
+
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER })
+  totalTraveler: number; // Total number of travelers (including additional)
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  amountPaidTotal: string; // Total amount paid for all travelers
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  initialInsurancePaidTotal: string; // Total insurance amount paid initially
+
+  @AllowNull(true)
   @Column({ type: DataType.JSON })
   travelersData: any; // Complete structured data for all travelers
 
@@ -79,6 +96,10 @@ export class VisaApplication extends Model<VisaApplication> {
   @AllowNull(true)
   @Column({ type: DataType.JSON })
   stepData: any; // store step-specific metadata
+
+  @AllowNull(true)
+  @Column({ type: DataType.JSON })
+  fullPayment: any; // Application-level full payment information
 
   @AllowNull(true)
   @Column({ type: DataType.DATE })

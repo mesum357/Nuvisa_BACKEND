@@ -203,7 +203,11 @@ export class TravelerInsuranceDto {
   insuranceDetails?: any;
 
   @IsOptional()
-  insuranceCertificate?: any; 
+  insuranceCertificate?: any;
+
+  @IsOptional()
+  @IsArray()
+  insuranceCertificates?: any[];
 
   @IsOptional()
   @IsString()
@@ -369,7 +373,7 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsUUID()
-  applicationId?: string; 
+  applicationId?: string;
 
   @IsOptional()
   @IsString()
@@ -393,18 +397,38 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsString()
-  visaTypeId?: string; 
+  visaTypeId?: string;
 
   @IsOptional()
   selectedVisaType?: any;
 
   @IsOptional()
   @IsString()
-  orderId?: string; 
+  orderId?: string;
 
   @IsOptional()
   @IsString()
   amountPaid?: string;
+
+  @IsOptional()
+  @IsNumber()
+  initiallyPaidTraveler?: number;
+
+  @IsOptional()
+  @IsNumber()
+  totalTraveler?: number;
+
+  @IsOptional()
+  @IsString()
+  amountPaidTotal?: string;
+
+  @IsOptional()
+  @IsString()
+  initialInsurancePaidTotal?: string;
+
+  @IsOptional()
+  @IsArray()
+  insuranceCertificates?: any[];
 
   @IsOptional()
   @IsString()
@@ -414,7 +438,7 @@ export class VisaApplicationDto {
   insuranceDetails?: any;
 
   @IsOptional()
-  insuranceCertificate?: any; 
+  insuranceCertificate?: any;
 
   @IsOptional()
   @IsBoolean()
@@ -422,10 +446,15 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsString()
-  paymentDate?: string; 
+  paymentDate?: string;
 
   @IsOptional()
-  appointment?: any;    
+  @ValidateNested()
+  @Type(() => TravelerFullPaymentDto)
+  fullPayment?: TravelerFullPaymentDto;
+
+  @IsOptional()
+  appointment?: any;
 
   @IsOptional()
   @IsNumber()
@@ -433,13 +462,13 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsNumber()
-  currentTravelerIndex?: number; 
+  currentTravelerIndex?: number;
 
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => TravelerDataDto)
-  travelersData?: TravelerDataDto[]; 
+  travelersData?: TravelerDataDto[];
 
   @IsOptional()
   @IsString()
