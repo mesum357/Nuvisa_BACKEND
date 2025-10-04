@@ -235,6 +235,23 @@ export class TravelerInsuranceDto {
   insuranceSource?: string; // 'checkout' | 'individual' | 'uploaded'
 }
 
+export class InsuranceDetailDto {
+  @IsOptional()
+  @IsNumber()
+  certificateCount?: number;
+
+  @IsOptional()
+  @IsArray()
+  certificate?: any[];
+
+  @IsOptional()
+  @IsJSON()
+  paidInCheckout?: any;
+
+  @IsOptional()
+  @IsJSON()
+  paidInApplication?: any;
+}
 export class TravelerFullPaymentDto {
   @IsOptional()
   @IsString()
@@ -401,6 +418,9 @@ export class VisaApplicationDto {
   insurance?: boolean;
 
   @IsOptional()
+  insuranceDetails?: InsuranceDetailDto;
+
+  @IsOptional()
   @IsString()
   paymentStatus?: string;
 
@@ -452,9 +472,6 @@ export class VisaApplicationDto {
   paymentType?: string;
 
   @IsOptional()
-  insuranceDetails?: any;
-
-  @IsOptional()
   insuranceCertificate?: any;
 
   @IsOptional()
@@ -464,6 +481,14 @@ export class VisaApplicationDto {
   @IsOptional()
   @IsString()
   paymentDate?: string;
+
+  @IsOptional()
+  @IsString()
+  travelStartDate?: string;
+
+  @IsOptional()
+  @IsString()
+  travelEndDate?: string;
 
   @IsOptional()
   @ValidateNested()
@@ -627,5 +652,13 @@ export class VisaApplicationUpdateDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => TravelerAppointmentDto)
-  appointment: TravelerAppointmentDto
+  appointment: TravelerAppointmentDto;
+
+  @IsOptional()
+  @IsString()
+  travelStartDate?: string;
+
+  @IsOptional()
+  @IsString()
+  travelEndDate?: string;
 }

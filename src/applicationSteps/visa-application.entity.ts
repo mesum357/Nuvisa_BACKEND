@@ -35,6 +35,14 @@ export class VisaApplication extends Model<VisaApplication> {
 
   @AllowNull(true)
   @Column({ type: DataType.STRING })
+  travelStartDate: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  travelEndDate: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
   visaTypeId: string; // SMV Konveyor visa type ID
 
   @AllowNull(true)
@@ -48,7 +56,7 @@ export class VisaApplication extends Model<VisaApplication> {
   @AllowNull(true)
   @Column({ type: DataType.STRING })
   amountPaid: string;
-  
+
   @AllowNull(true)
   @Column({ type: DataType.STRING })
   paymentWithoutInsurance: string;
@@ -116,4 +124,8 @@ export class VisaApplication extends Model<VisaApplication> {
   @AllowNull(true)
   @Column({ type: DataType.JSON })
   appointment: any; // Application-level appointment information
+
+  @AllowNull(true)
+  @Column({ type: DataType.JSON })
+  insuranceDetails: any; // Application-level insurance details information
 }

@@ -8,6 +8,7 @@ import {
   UseGuards,
   Req,
   Patch,
+  Query,
 } from "@nestjs/common";
 import { VisaApplicationService } from "./visa-application.service";
 // import { VisaApplicationDto } from "./dto/visa-application.dto";
@@ -48,12 +49,11 @@ export class VisaApplicationController {
     }
   }
 
-  @Post("getApplicationById")
+  @Get("getApplicationById")
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard)
   async getUserVisaApplicationById(
-    @Body() getApplicationByIdDto: GetApplicationByIdDto,
-    @Req() request: string
+    @Query() getApplicationByIdDto: GetApplicationByIdDto
   ) {
     try {
       const application =
@@ -164,4 +164,3 @@ export class VisaApplicationController {
     }
   }
 }
-

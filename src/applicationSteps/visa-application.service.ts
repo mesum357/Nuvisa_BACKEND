@@ -226,6 +226,7 @@ export class VisaApplicationService {
   ) {
     try {
       const { id } = getApplicationByIdDto;
+      console.log(id, "TEMPPP");
 
       const userVisaApplication = await VisaApplication.findByPk(id);
 
@@ -233,6 +234,7 @@ export class VisaApplicationService {
         callHTTPException("Visa application not found");
       }
 
+      console.log(userVisaApplication, "TEMPPPPPPP");
       let parsedTravelersData = null;
 
       if (userVisaApplication.travelersData) {
@@ -249,79 +251,81 @@ export class VisaApplicationService {
         }
       }
 
-      if (!parsedTravelersData && userVisaApplication.numberOfTravellers) {
-        parsedTravelersData = Array.from(
-          { length: userVisaApplication.numberOfTravellers },
-          (_, index) => ({
-            id: index + 1,
-            basicDetails: {
-              passportNumber: "",
-              firstName: "",
-              lastName: "",
-              sex: "",
-              dateOfBirth: "",
-              placeOfBirth: "",
-              passportIssuePlace: "",
-              passportIssueDate: "",
-              passportExpiryDate: "",
-              currentAddress1: "",
-              currentAddress2: "",
-              state: "",
-              city: "",
-              pincode: "",
-              mobileNumber: "",
-              passportFront: null,
-              passportBack: null,
-            },
-            visitDetails: {
-              visitingOtherSchengenCountries: [],
-              firstCountryOfEntry: "",
-              hasSchengenVisa: "",
-              lastVisaStartDate: "",
-              lastVisaEndDate: "",
-              hasDigitalFingerprints: "",
-              previousVisaNumber: "",
-              maritalStatus: "",
-              partnerFullName: "",
-              partnerDateOfBirth: "",
-              employmentStatus: "",
-              institutionName: "",
-              instituteEmail: "",
-              instituteAddress: "",
-              employerPhone: "",
-              employerName: "",
-              employerEmail: "",
-              employerAddress: "",
-              otherEmploymentStatus: "",
-              willAnyonePayForVisit: "",
-              fundingPersonName: "",
-              tripFundedBy: "",
-            },
-            documents: {
-              documents: {},
-            },
-            insurance: {
-              insurance: "false", // Default to false for backward compatibility
-              insuranceDetails: null,
-              orderId: null,
-              paymentAmount: null,
-              insurancePaymentCompleted: false,
-            },
-            fullPayment: {
-              paymentStatus: "pending",
-              paymentMethod: "",
-              orderId: null,
-              paymentAmount: null,
-              paymentCompleted: false,
-              includeInsurance: false,
-              insuranceType: "none",
-            },
-          })
-        );
+      // if (!parsedTravelersData && userVisaApplication.numberOfTravellers) {
+      //   parsedTravelersData = Array.from(
+      //     { length: userVisaApplication.numberOfTravellers },
+      //     (_, index) => ({
+      //       id: index + 1,
+      //       basicDetails: {
+      //         passportNumber: "",
+      //         firstName: "",
+      //         lastName: "",
+      //         sex: "",
+      //         dateOfBirth: "",
+      //         placeOfBirth: "",
+      //         passportIssuePlace: "",
+      //         passportIssueDate: "",
+      //         passportExpiryDate: "",
+      //         currentAddress1: "",
+      //         currentAddress2: "",
+      //         state: "",
+      //         city: "",
+      //         pincode: "",
+      //         mobileNumber: "",
+      //         passportFront: null,
+      //         passportBack: null,
+      //       },
+      //       visitDetails: {
+      //         visitingOtherSchengenCountries: [],
+      //         firstCountryOfEntry: "",
+      //         hasSchengenVisa: "",
+      //         lastVisaStartDate: "",
+      //         lastVisaEndDate: "",
+      //         hasDigitalFingerprints: "",
+      //         previousVisaNumber: "",
+      //         maritalStatus: "",
+      //         partnerFullName: "",
+      //         partnerDateOfBirth: "",
+      //         employmentStatus: "",
+      //         institutionName: "",
+      //         instituteEmail: "",
+      //         instituteAddress: "",
+      //         employerPhone: "",
+      //         employerName: "",
+      //         employerEmail: "",
+      //         employerAddress: "",
+      //         otherEmploymentStatus: "",
+      //         willAnyonePayForVisit: "",
+      //         fundingPersonName: "",
+      //         tripFundedBy: "",
+      //       },
+      //       documents: {
+      //         documents: {},
+      //       },
+      //       insurance: {
+      //         insurance: "false", // Default to false for backward compatibility
+      //         insuranceDetails: null,
+      //         orderId: null,
+      //         paymentAmount: null,
+      //         insurancePaymentCompleted: false,
+      //       },
+      //       fullPayment: {
+      //         paymentStatus: "pending",
+      //         paymentMethod: "",
+      //         orderId: null,
+      //         paymentAmount: null,
+      //         paymentCompleted: false,
+      //         includeInsurance: false,
+      //         insuranceType: "none",
+      //       },
+      //     })
+      //   );
 
-        userVisaApplication.travelersData = JSON.stringify(parsedTravelersData);
-        await userVisaApplication.save();
-      }
+      //   userVisaApplication.travelersData = JSON.stringify(parsedTravelersData);
+      //   await userVisaApplication.save();
+      // }
+
+      console.log(parsedTravelersData, "TEMPPP");
 
       if (Array.isArray(parsedTravelersData)) {
         parsedTravelersData = parsedTravelersData.map((traveler) => {
@@ -484,30 +488,28 @@ export class VisaApplicationService {
           }
         }
 
-        if (dto.travelersData && dto.insurance) {
-          processedTravelersData = dto.travelersData.map((traveler, index) => {
-            const numberOfPaidTravelers = dto.numberOfTravellers || 1;
-            if (index < numberOfPaidTravelers) {
-              return {
-                ...traveler,
-                insurance: {
-                  ...traveler.insurance,
-                  insurance: dto.insurance,
-                  insuranceDetails:
-                    dto.insurance === true ? { selected: true } : null,
-                },
-              };
-            }
-            return {
-              ...traveler,
-              insurance: {
-                ...traveler.insurance,
-                insurance: false,
-                insuranceDetails: null,
-              },
-            };
-          });
-        }
+        // if (dto.travelersData) {
+        //   processedTravelersData = dto.travelersData.map((traveler, index) => {
+        //     const numberOfPaidTravelers = dto.numberOfTravellers || 1;
+        //     if (index < numberOfPaidTravelers) {
+        //       return {
+        //         ...traveler,
+        //         insurance: {
+        //           ...traveler.insurance,
+        //           insurance: dto.insurance,
+        //         },
+        //       };
+        //     }
+        //     return {
+        //       ...traveler,
+        //       insurance: {
+        //         ...traveler.insurance,
+        //         insurance: false,
+        //         insuranceDetails: null,
+        //       },
+        //     };
+        //   });
+        // }
 
         application = await VisaApplication.create({
           email: dto.email,
@@ -517,7 +519,7 @@ export class VisaApplicationService {
           orderId: dto.orderId, // Store SMV Konveyor order ID
           amountPaid: dto.amountPaid,
           amountPaidTotal: dto.amountPaidTotal || dto.amountPaid, // Total amount paid for all travelers
-          paymentWithoutInsurance: dto.paymentWithoutInsurance,
+          paymentWithoutInsurance: String(dto.paymentWithoutInsurance || 0),
           initialInsurancePaidTotal:
             dto.initialInsurancePaidTotal ||
             String(
@@ -538,41 +540,14 @@ export class VisaApplicationService {
           travelersData: processedTravelersData
             ? JSON.stringify(processedTravelersData)
             : null,
-          insuranceCertificates: (dto as any).insuranceCertificates || null,
           // Create a top-level application insurance object derived from traveler insurance if available
-          insurance: (function () {
-            try {
-              const travelers = processedTravelersData || [];
-              if (travelers.length === 0) return null;
-              // If all travelers share same orderId/paymentAmount, create a common object
-              const totalInsurance = travelers
-                .map(
-                  (t) => Number(((t || {}).insurance || {}).paymentAmount) || 0
-                )
-                .reduce((s, v) => s + v, 0);
-              const anyOrderId =
-                travelers.find((t) => t.insurance && t.insurance.orderId)
-                  ?.insurance?.orderId || null;
-              const allPaid = travelers.every(
-                (t) =>
-                  (t.insurance && t.insurance.insurancePaymentCompleted) ===
-                  true
-              );
-              return {
-                insurancePaymentCompleted: allPaid,
-                orderId: anyOrderId,
-                paymentAmount: totalInsurance,
-                insuranceCertificates:
-                  (dto as any).insuranceCertificates || null,
-                paymentSource: (dto as any).paymentSource || null,
-              };
-            } catch {
-              return null;
-            }
-          })(),
+          insurance: dto.insurance ? JSON.stringify(dto.insurance) : null,
           paymentStatus: dto.paymentStatus || "pending",
           paymentMethod: dto.paymentMethod || "",
-        } as any);
+          insuranceDetails: dto.insuranceDetails || null,
+          travelStartDate: dto.travelStartDate || null,
+          travelEndDate: dto.travelEndDate || null,
+        });
       } else {
         if (!dto.applicationId) {
           callHTTPException("applicationId is required for this step");
@@ -633,6 +608,7 @@ export class VisaApplicationService {
             VisaApplicationStepType.VISIT_DETAILS,
             VisaApplicationStepType.DOCUMENTS,
             VisaApplicationStepType.APPOINTMENT,
+            VisaApplicationStepType.INSURANCE,
           ];
 
           if (!allSteps.includes(VisaApplicationStepType.INSURANCE)) {
@@ -1488,6 +1464,9 @@ export class VisaApplicationService {
         "archivedAt",
         "insuranceCertificates",
         "totalTraveler",
+        "travelStartDate",
+        "travelEndDate",
+        "insuranceDetails",
       ];
 
       updatableFields.forEach((field) => {
@@ -1865,6 +1844,10 @@ export class VisaApplicationService {
       completedSteps.push(VisaApplicationStepType.APPOINTMENT);
     }
 
+    if (this.isInsuranceComplete(travelerData.insurance)) {
+      completedSteps.push(VisaApplicationStepType.INSURANCE);
+    }
+
     // If legacy payment is complete or fullPayment is complete, consider FULL_PAYMENT done
     const legacyPaymentDone = this.isPaymentComplete(
       travelerData.payment,
@@ -2106,68 +2089,9 @@ export class VisaApplicationService {
   }
 
   private isInsuranceComplete(insurance: any): boolean {
-    if (!insurance) {
-      return false;
-    }
-
-    const insuranceValue = insurance.insurance;
-
-    if (insuranceValue === "true" || insuranceValue === true) {
-      return true;
-    }
-
-    if (
-      insuranceValue === "false" &&
-      insurance.orderId &&
-      insurance.paymentAmount
-    ) {
-      insurance.insurance = "true";
-      return true;
-    }
-
-    if (insuranceValue === "purchase") {
-      const paymentCompleted = insurance.insurancePaymentCompleted === true;
-      const hasOrderId = !!insurance.orderId;
-      const hasPaymentAmount = !!insurance.paymentAmount;
-      const hasPaymentDate = !!insurance.paymentDate;
-
-      const isComplete =
-        paymentCompleted && hasOrderId && hasPaymentAmount && hasPaymentDate;
-
-      if (isComplete) {
-        insurance.insurance = "true";
-      }
-
-      return isComplete;
-    }
-    if (insuranceValue === "own") {
-      let hasCertificate = false;
-
-      if (insurance.insuranceCertificate) {
-        if (typeof insurance.insuranceCertificate === "string") {
-          hasCertificate = insurance.insuranceCertificate.trim() !== "";
-        } else if (
-          typeof insurance.insuranceCertificate === "object" &&
-          insurance.insuranceCertificate !== null
-        ) {
-          hasCertificate = true;
-        } else {
-          hasCertificate = true;
-        }
-      }
-
-      const hasDetailsFlag = !!insurance.insuranceDetails?.certificateUploaded;
-
-      const isComplete = hasCertificate || hasDetailsFlag;
-
-      if (isComplete) {
-        insurance.insurance = "true";
-      }
-
-      return isComplete;
-    }
-
-    return false;
+    return (
+      insurance?.insurancePaymentCompleted || insurance.insuranceCertificates
+    );
   }
 
   private calculateInsuranceCost(
@@ -2344,12 +2268,12 @@ export class VisaApplicationService {
         VisaApplicationStepType.DOCUMENTS,
         VisaApplicationStepType.APPOINTMENT,
         VisaApplicationStepType.FULL_PAYMENT,
+        VisaApplicationStepType.INSURANCE,
       ];
 
       const travelerHasInsurance =
-        traveler.insurance &&
-        traveler.insurance.insurance &&
-        traveler.insurance.insurance !== "false";
+        traveler.insurance.insurancePaymentCompleted ||
+        traveler.insurance.insuranceCertificates;
 
       const hasBackwardCompatibilityInsurance = false; // Removed since we no longer have application.insurance
 
@@ -2430,6 +2354,7 @@ export class VisaApplicationService {
         VisaApplicationStepType.DOCUMENTS,
         VisaApplicationStepType.APPOINTMENT,
         VisaApplicationStepType.FULL_PAYMENT,
+        VisaApplicationStepType.INSURANCE,
       ];
 
       const paidCount = application.numberOfTravellers || 1;
