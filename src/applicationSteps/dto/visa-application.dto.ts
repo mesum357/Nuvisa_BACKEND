@@ -207,8 +207,7 @@ export class TravelerInsuranceDto {
   insuranceCertificate?: any;
 
   @IsOptional()
-  @IsArray()
-  insuranceCertificates?: any[];
+  insuranceCertificates?: any;
 
   @IsOptional()
   @IsString()
