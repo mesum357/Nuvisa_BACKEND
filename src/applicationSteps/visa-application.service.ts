@@ -633,13 +633,6 @@ export class VisaApplicationService {
           currentTraveler.stepInfo = currentStepInfo;
 
           const updatedTravelersData = dto.travelersData || travelersData;
-          if (
-            this.areAllTravelersCompleted(updatedTravelersData, application)
-          ) {
-            if (application.applicationStatus !== "submitted") {
-              application.applicationStatus = "submitted";
-            }
-          }
         }
 
         // No more global step tracking - only traveler-specific stepInfo is managed
@@ -743,7 +736,6 @@ export class VisaApplicationService {
           if (
             this.areAllTravelersCompleted(currentTravelersData, application)
           ) {
-            application.applicationStatus = "submitted";
           }
         }
 
@@ -768,7 +760,6 @@ export class VisaApplicationService {
           if (
             this.areAllTravelersCompleted(currentTravelersData, application)
           ) {
-            application.applicationStatus = "submitted";
           }
         }
 
@@ -1090,16 +1081,12 @@ export class VisaApplicationService {
           if (
             this.areAllTravelersCompleted(currentTravelersData, application)
           ) {
-            application.applicationStatus = "submitted";
           } else {
             const hasUnpaidAdditionalTravelers =
               this.checkForUnpaidAdditionalTravelers(
                 currentTravelersData,
                 application
               );
-            if (hasUnpaidAdditionalTravelers) {
-              application.applicationStatus = "payment_required";
-            }
           }
         }
 
@@ -1223,7 +1210,6 @@ export class VisaApplicationService {
           if (
             this.areAllTravelersCompleted(currentTravelersData, application)
           ) {
-            application.applicationStatus = "submitted";
           }
         }
 
@@ -1346,7 +1332,7 @@ export class VisaApplicationService {
               );
 
               if (this.areAllTravelersCompleted(travelersData, application)) {
-                application.applicationStatus = "submitted";
+                // application.applicationStatus = "submitted";
               }
             } catch (err) {
               console.error("Error processing payment step:", err);
@@ -1360,7 +1346,7 @@ export class VisaApplicationService {
             );
 
             if (this.areAllTravelersCompleted(dto.travelersData, application)) {
-              application.applicationStatus = "submitted";
+              // application.applicationStatus = "submitted";
             }
           }
         }
@@ -1513,6 +1499,8 @@ export class VisaApplicationService {
           application
         );
       }
+
+      application.applicationStatus = dto.applicationStatus;
 
       await application.save();
 
@@ -2169,11 +2157,11 @@ export class VisaApplicationService {
       application.initiallyPaidTraveler || application.numberOfTravellers || 1;
     const currentTravelerCount = travelersData.length;
 
-    if (currentTravelerCount > paidTravelerCount) {
-      if (application.applicationStatus === "submitted") {
-        application.applicationStatus = "payment_required";
-      }
-    }
+    // if (currentTravelerCount > paidTravelerCount) {
+    //   if (application.applicationStatus === "submitted") {
+    //     application.applicationStatus = "payment_required";
+    //   }
+    // }
 
     const hasIncompleteTravelers = travelersData.some((traveler, index) => {
       const travelerStepInfo =
@@ -2232,7 +2220,7 @@ export class VisaApplicationService {
       application.applicationStatus !== "submitted" &&
       application.applicationStatus !== "payment_required"
     ) {
-      application.applicationStatus = "submitted";
+      // application.applicationStatus = "submitted";
     }
   }
 
@@ -2327,18 +2315,18 @@ export class VisaApplicationService {
     });
 
     const currentTravelerCount = travelersData.length;
-    if (currentTravelerCount > initiallyPaidCount) {
-      if (application.applicationStatus === "submitted") {
-        application.applicationStatus = "payment_required";
-      }
-    }
+    // if (currentTravelerCount > initiallyPaidCount) {
+    //   if (application.applicationStatus === "submitted") {
+    //     application.applicationStatus = "payment_required";
+    //   }
+    // }
 
     if (this.areAllTravelersCompleted(travelersData, application)) {
       if (
         application.applicationStatus !== "submitted" &&
         application.applicationStatus !== "payment_required"
       ) {
-        application.applicationStatus = "submitted";
+        // application.applicationStatus = "submitted";
       }
     } else {
       if (application.applicationStatus === "submitted") {

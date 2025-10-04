@@ -660,4 +660,8 @@ export class VisaApplicationUpdateDto {
   @IsOptional()
   @IsString()
   travelEndDate?: string;
+
+  @IsOptional()
+  @IsString()
+  applicationStatus?: string;
 }
