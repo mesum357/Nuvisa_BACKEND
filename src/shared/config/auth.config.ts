@@ -9,15 +9,62 @@ if (fs.existsSync(envPath)) {
   require("dotenv").config();
 }
 
+// Derive DB settings from DATABASE_URL if provided; fallback to individual vars
+const fromUrl = (() => {
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl) return {};
+  try {
+    // Support both postgres:// and postgresql://
+    const normalized = rawUrl.replace(/^postgres:\/\//, "postgresql://");
+    const url = new URL(normalized);
+    const host = url.hostname;
+    const port = url.port || "5432";
+    const username = decodeURIComponent(url.username || "");
+    const password = decodeURIComponent(url.password || "");
+    const database = (url.pathname || "/").replace(/^\//, "");
+
+    // Detect SSL requirements: sslmode=require or known managed hosts
+    const sslMode = url.searchParams.get("sslmode");
+    const managedHost = /supabase\.co$|neon\.tech$|render\.com$|aws\.com$|herokuapp\.com$/.test(
+      host
+    );
+    const ssl = (process.env.DATABASE_SSL || "").toLowerCase();
+    const sslRequired =
+      ssl === "true" || sslMode === "require" || managedHost ? true : false;
+
+    return {
+      host,
+      port,
+      username,
+      password,
+      database,
+      sslRequired,
+    };
+  } catch (_) {
+    return {};
+  }
+})();
+
+const DATABASE_HOST = fromUrl.host || process.env.DATABASE_HOST;
+const DATABASE_PORT = fromUrl.port || process.env.DATABASE_PORT;
+const DATABASE_NAME = fromUrl.database || process.env.DATABASE_NAME;
+const DATABASE_USER = fromUrl.username || process.env.DATABASE_USER;
+const DATABASE_PASSWORD = fromUrl.password || process.env.DATABASE_PASSWORD;
+const DATABASE_SSL = String(
+  typeof fromUrl.sslRequired === "boolean"
+    ? fromUrl.sslRequired
+    : (process.env.DATABASE_SSL || "false").toLowerCase() === "true"
+);
+
 export default {
   jwt_secret: process.env.JWT_SECRET,
   PORT: process.env.PORT,
-  DATABASE_HOST: process.env.DATABASE_HOST,
-  DATABASE_NAME: process.env.DATABASE_NAME,
-  DATABASE_USER: process.env.DATABASE_USER,
-  DATABASE_PASSWORD: process.env.DATABASE_PASSWORD,
-
-  DATABASE_PORT: process.env.DATABASE_PORT,
+  DATABASE_HOST,
+  DATABASE_NAME,
+  DATABASE_USER,
+  DATABASE_PASSWORD,
+  DATABASE_PORT,
+  DATABASE_SSL,
   WEBSITE_URL: process.env.WEBSITE_URL,
 
   MAILER_EMAIL: process.env.MAILER_EMAIL,

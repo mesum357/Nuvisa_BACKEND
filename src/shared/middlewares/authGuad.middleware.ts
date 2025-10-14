@@ -19,6 +19,16 @@ export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
+    // Allowlisted origins or admin proxy can bypass auth (e.g., Admin at localhost:3001)
+    try {
+      const originHeader = (request.headers["x-admin-origin"] as string) || (request.headers["origin"] as string) || (request.headers["referer"] as string) || undefined;
+      const adminProxy = request.headers["x-admin-proxy"] === "1";
+      const allowList = (process.env.ALLOW_ORIGIN_NOAUTH || "http://localhost:3001").split(",").map((o) => o.trim());
+      if ((adminProxy && originHeader && allowList.some((o) => originHeader.startsWith(o))) || (originHeader && allowList.some((o) => originHeader.startsWith(o)))) {
+        return true;
+      }
+    } catch {}
+
     const token = this.extractTokenFromHeader(request);
     if (!token) {
       callHTTPException("UnauthorizedException");
