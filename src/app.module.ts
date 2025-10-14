@@ -36,12 +36,12 @@ import { UploadModule } from "./upload/upload.module";
         acquire: 30000,
         idle: 10000,
       },
-      dialectOptions: {
+      dialectOptions: Env.DATABASE_SSL === "true" ? {
         ssl: {
           require: true,
           rejectUnauthorized: false,
         },
-      },
+      } : {},
     }),
     SequelizeModule.forFeature([]),
     AuthModule,

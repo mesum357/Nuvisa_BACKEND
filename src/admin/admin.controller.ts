@@ -50,6 +50,100 @@ export class AdminController {
   }
 
   /**
+   * GET /orders/applicants
+   * Return distinct users that have at least one application
+   */
+  @Get('applicants')
+  async getApplicants(
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+    @Query('search') search: string,
+    @Query('sortBy') sortBy: string,
+    @Query('sortOrder') sortOrder: 'ASC' | 'DESC',
+  ) {
+    try {
+      const data = await this.adminService.getApplicantsWithApplications({
+        page: page ? Number(page) : undefined,
+        limit: limit ? Number(limit) : undefined,
+        search,
+        sortBy,
+        sortOrder,
+      });
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Applicants fetched successfully'
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
+   * GET /orders/users
+   * Return users from backend users table
+   */
+  @Get('users')
+  async getBackendUsers(
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+    @Query('search') search: string,
+    @Query('sortBy') sortBy: string,
+    @Query('sortOrder') sortOrder: 'ASC' | 'DESC',
+  ) {
+    try {
+      const data = await this.adminService.getBackendUsers({
+        page: page ? Number(page) : undefined,
+        limit: limit ? Number(limit) : undefined,
+        search,
+        sortBy,
+        sortOrder,
+      });
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Users fetched successfully'
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
+
+  @Get('users/debug')
+  async getBackendUsersDebug() {
+    try {
+      const data = await this.adminService.getBackendUsersDebug();
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Users debug'
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
+   * PATCH /orders/users/:id
+   */
+  @Patch('users/:id')
+  async updateBackendUser(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    try {
+      const data = await this.adminService.updateBackendUserById(id, body);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'User updated successfully'
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
    * GET /orders/documents-overview
    * Get overview of all documents
    */

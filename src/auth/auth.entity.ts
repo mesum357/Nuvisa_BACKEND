@@ -51,4 +51,12 @@ export class User extends Model<User> {
     type: DataType.DATE,
   })
   otp_expiry: Date;
+
+  @AllowNull(true)
+  @Column({ type: DataType.BOOLEAN, field: 'is_verified', defaultValue: false })
+  is_verified: boolean;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING, field: 'status', defaultValue: 'ACTIVE' })
+  status: string;
 }
