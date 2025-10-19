@@ -1332,7 +1332,7 @@ export class VisaApplicationService {
               );
 
               if (this.areAllTravelersCompleted(travelersData, application)) {
-                // application.applicationStatus = "submitted";
+                application.applicationStatus = "submitted";
               }
             } catch (err) {
               console.error("Error processing payment step:", err);
@@ -1346,7 +1346,7 @@ export class VisaApplicationService {
             );
 
             if (this.areAllTravelersCompleted(dto.travelersData, application)) {
-              // application.applicationStatus = "submitted";
+              application.applicationStatus = "submitted";
             }
           }
         }
@@ -2326,7 +2326,7 @@ export class VisaApplicationService {
         application.applicationStatus !== "submitted" &&
         application.applicationStatus !== "payment_required"
       ) {
-        // application.applicationStatus = "submitted";
+        application.applicationStatus = "submitted";
       }
     } else {
       if (application.applicationStatus === "submitted") {
