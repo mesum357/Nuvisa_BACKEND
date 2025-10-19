@@ -225,6 +225,12 @@ export class AdminController {
       );
     } catch (error) {
       console.error('Error in updateApplicationStatus:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        applicationId,
+        updateDto
+      });
       callHTTPException(error.message);
     }
   }

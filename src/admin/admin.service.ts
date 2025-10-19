@@ -438,10 +438,18 @@ export class AdminService {
    */
   async updateApplicationStatus(updateDto: UpdateApplicationStatusDto): Promise<any> {
     try {
+      // Validate input
+      if (!updateDto.applicationId) {
+        throw new Error('Application ID is required');
+      }
+      if (!updateDto.status) {
+        throw new Error('Status is required');
+      }
+      
       const application = await this.visaApplicationModel.findByPk(updateDto.applicationId);
 
       if (!application) {
-        throw new Error('Application not found');
+        throw new Error(`Application not found with ID: ${updateDto.applicationId}`);
       }
 
       await application.update({
