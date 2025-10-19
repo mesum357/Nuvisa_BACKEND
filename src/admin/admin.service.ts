@@ -449,6 +449,9 @@ export class AdminService {
         updatedAt: new Date()
       });
 
+      // Reload the application to get the updated values
+      await application.reload();
+
       // Here you could also log the status change in an audit table
       // await this.logStatusChange(updateDto);
 
