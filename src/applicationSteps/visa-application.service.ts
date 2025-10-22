@@ -56,18 +56,35 @@ function filterSensitiveDataForLogging(data: any): any {
 
 @Injectable()
 export class VisaApplicationService {
-  async checkIfUserExists(id): Promise<User> {
-    const user = await User.findByPk(id);
-    return user;
+  async checkIfUserExists(id): Promise<User | null> {
+    try {
+      console.log('checkIfUserExists called with id:', id);
+      const user = await User.findByPk(id);
+      console.log('User found:', user ? { id: user.id, email: user.email } : 'null');
+      return user;
+    } catch (error) {
+      console.error('Error in checkIfUserExists:', error);
+      return null;
+    }
   }
 
   async getUserVisaApplications(userId) {
     try {
+      console.log('getUserVisaApplications called with userId:', userId);
+      
       const user = await this.checkIfUserExists(userId);
+      console.log('Found user:', user ? { id: user.id, email: user.email } : 'null');
+
+      if (!user) {
+        console.log('User not found in database, returning empty applications...');
+        return { applications: [] }; // Return empty array if user doesn't exist
+      }
 
       const userVisaApplications = await VisaApplication.findAll({
         where: { email: user.email },
       });
+      
+      console.log('Found applications count:', userVisaApplications.length);
 
       const applicationsWithParsedData = userVisaApplications.map((app) => {
         let parsedTravelersData = null;
