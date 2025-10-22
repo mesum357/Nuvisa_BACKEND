@@ -11,6 +11,7 @@ import {
   ApplicationStatus,
   SearchType
 } from './dto';
+import { sendEmail, renderTemplate } from '../shared/services/sendEmail.service';
 
 @Injectable()
 export class AdminService {
@@ -452,6 +453,7 @@ export class AdminService {
         throw new Error(`Application not found with ID: ${updateDto.applicationId}`);
       }
 
+      const oldStatus = application.applicationStatus;
       await application.update({
         applicationStatus: updateDto.status,
         updatedAt: new Date()
@@ -459,6 +461,42 @@ export class AdminService {
 
       // Reload the application to get the updated values
       await application.reload();
+
+      // Send email notification to user
+      try {
+        const statusMessages = {
+          'submitted': 'Your application has been submitted and is being reviewed.',
+          'under_review': 'Your application is now under review by our team.',
+          'processing': 'Your application is being processed.',
+          'appointment_booked': 'Your appointment has been booked. Please check your email for details.',
+          'at_embassy': 'Your application is now at the embassy for final processing.',
+          'approved': 'Congratulations! Your visa application has been approved.',
+          'completed': 'Your visa application has been completed successfully.',
+          'rejected': 'Unfortunately, your visa application has been rejected. Please contact us for more information.',
+          'cancelled': 'Your visa application has been cancelled.'
+        };
+
+        const message = statusMessages[updateDto.status] || `Your application status has been updated to: ${updateDto.status}`;
+        
+        await sendEmail({
+          emailAddress: application.email,
+          subject: `Visa Application Status Update - ${updateDto.status.toUpperCase()}`,
+          body: `
+            <p>Dear Applicant,</p>
+            <p>Your visa application status has been updated:</p>
+            <p><strong>Previous Status:</strong> ${oldStatus || 'Unknown'}</p>
+            <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
+            <p><strong>Message:</strong> ${message}</p>
+            ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
+            <p>Please log in to your account to view more details.</p>
+          `
+        });
+        
+        console.log(`Email notification sent to ${application.email} for status change from ${oldStatus} to ${updateDto.status}`);
+      } catch (emailError) {
+        console.error('Failed to send email notification:', emailError);
+        // Don't throw error here, just log it
+      }
 
       // Here you could also log the status change in an audit table
       // await this.logStatusChange(updateDto);
@@ -520,6 +558,92 @@ export class AdminService {
     } catch (error) {
       console.error('Error fetching application activity:', error);
       throw new Error('Failed to fetch application activity');
+    }
+  }
+
+  /**
+   * Get application comments (mock implementation)
+   */
+  async getApplicationComments(applicationId: string): Promise<any> {
+    try {
+      const application = await this.visaApplicationModel.findByPk(applicationId);
+
+      if (!application) {
+        throw new Error('Application not found');
+      }
+
+      // Mock comments - in real implementation, you'd have a comments table
+      const comments = [
+        {
+          id: 1,
+          comment: 'Application looks good, all documents are in order.',
+          isInternal: true,
+          adminId: 'admin-1',
+          adminEmail: 'admin@nuvisa.com',
+          createdAt: new Date(application.createdAt.getTime() + 2 * 60 * 60 * 1000),
+          updatedAt: new Date(application.createdAt.getTime() + 2 * 60 * 60 * 1000)
+        },
+        {
+          id: 2,
+          comment: 'Please provide additional bank statement for the last 3 months.',
+          isInternal: false,
+          adminId: 'admin-1',
+          adminEmail: 'admin@nuvisa.com',
+          createdAt: new Date(application.createdAt.getTime() + 3 * 60 * 60 * 1000),
+          updatedAt: new Date(application.createdAt.getTime() + 3 * 60 * 60 * 1000)
+        }
+      ];
+
+      return {
+        applicationId,
+        comments: comments.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      };
+    } catch (error) {
+      console.error('Error fetching application comments:', error);
+      throw new Error('Failed to fetch application comments');
+    }
+  }
+
+  /**
+   * Add comment to application (mock implementation)
+   */
+  async addApplicationComment(data: {
+    applicationId: string;
+    comment: string;
+    isInternal: boolean;
+    adminId?: string;
+    adminEmail?: string;
+  }): Promise<any> {
+    try {
+      const application = await this.visaApplicationModel.findByPk(data.applicationId);
+
+      if (!application) {
+        throw new Error('Application not found');
+      }
+
+      // Mock comment creation - in real implementation, you'd save to a comments table
+      const newComment = {
+        id: Date.now(), // Mock ID
+        comment: data.comment,
+        isInternal: data.isInternal,
+        adminId: data.adminId,
+        adminEmail: data.adminEmail,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      // In a real implementation, you would:
+      // 1. Save the comment to a comments table
+      // 2. Send email notification if isInternal is false
+      // 3. Log the activity
+
+      return {
+        applicationId: data.applicationId,
+        comment: newComment
+      };
+    } catch (error) {
+      console.error('Error adding application comment:', error);
+      throw new Error('Failed to add application comment');
     }
   }
 
@@ -621,23 +745,90 @@ export class AdminService {
       const whereCondition = filters || {};
 
       const total = await this.visaApplicationModel.count({ where: whereCondition });
+      
+      // Comprehensive status mapping for accurate categorization
       const pending = await this.visaApplicationModel.count({
-        where: { ...whereCondition, applicationStatus: { [Op.in]: ['new', 'draft'] } },
+        where: { 
+          ...whereCondition, 
+          applicationStatus: { 
+            [Op.in]: [
+              'new', 'draft', 'pending', 
+              'PENDING' // Only draft/new/pending, NOT submitted
+            ] 
+          } 
+        },
       });
+      
+      const submitted = await this.visaApplicationModel.count({
+        where: { 
+          ...whereCondition, 
+          applicationStatus: { 
+            [Op.in]: [
+              'submitted', 'SUBMITTED' // Submitted applications stay as submitted
+            ] 
+          } 
+        },
+      });
+      
       const in_progress = await this.visaApplicationModel.count({
-        where: { ...whereCondition, applicationStatus: { [Op.in]: ['submitted', 'under_review', 'processing'] } },
+        where: { 
+          ...whereCondition, 
+          applicationStatus: { 
+            [Op.in]: [
+              'under_review', 'processing', 'appointment_booked', 'at_embassy',
+              'UNDER_REVIEW', 'APPOINTMENT_BOOKED', 'AT_EMBASSY' // Include both variants
+            ] 
+          } 
+        },
       });
+      
       const completed = await this.visaApplicationModel.count({
-        where: { ...whereCondition, applicationStatus: { [Op.in]: ['completed', 'approved'] } },
+        where: { 
+          ...whereCondition, 
+          applicationStatus: { 
+            [Op.in]: ['completed', 'COMPLETED'] // Only completed, not approved
+          } 
+        },
       });
+      
+      const approved = await this.visaApplicationModel.count({
+        where: { 
+          ...whereCondition, 
+          applicationStatus: { 
+            [Op.in]: ['approved', 'APPROVED'] // Separate approved from completed
+          } 
+        },
+      });
+      
       const rejected = await this.visaApplicationModel.count({
-        where: { ...whereCondition, applicationStatus: { [Op.in]: ['rejected', 'cancelled'] } },
+        where: { 
+          ...whereCondition, 
+          applicationStatus: { 
+            [Op.in]: ['rejected', 'cancelled', 'REJECTED', 'CANCELLED'] // Include both variants
+          } 
+        },
       });
 
-      return { total, pending, in_progress, completed, rejected };
+      return { 
+        total, 
+        pending, 
+        submitted, // Add submitted count
+        in_progress, 
+        completed, 
+        approved, // Add separate approved count
+        rejected 
+      };
     } catch (error) {
       console.error('Error calculating stats:', error);
-      return { total: 0, pending: 0, in_progress: 0, completed: 0, rejected: 0 };
+      return { 
+        total: 0, 
+        pending: 0, 
+        submitted: 0, // Add submitted count
+        in_progress: 0, 
+        completed: 0, 
+        approved: 0, 
+        rejected: 0 
+      };
     }
   }
 
@@ -852,7 +1043,15 @@ export class AdminService {
   /**
    * Get users from backend users table with pagination and search
    */
-  async getBackendUsers(params?: { search?: string; page?: number; limit?: number; sortBy?: string; sortOrder?: 'ASC' | 'DESC'; }): Promise<any> {
+  async getBackendUsers(params?: { 
+    search?: string; 
+    page?: number; 
+    limit?: number; 
+    sortBy?: string; 
+    sortOrder?: 'ASC' | 'DESC';
+    dateFrom?: string;
+    dateTo?: string;
+  }): Promise<any> {
     const page = Number(params?.page ?? 1) || 1;
     const limit = Number(params?.limit ?? 20) || 20;
     const offset = (page - 1) * limit;
@@ -863,6 +1062,8 @@ export class AdminService {
     const search = (params?.search || '').trim();
 
     const whereUser: any = {};
+    
+    // Text search
     if (search) {
       const like = `%${search}%`;
       whereUser[Op.or] = [
@@ -871,6 +1072,18 @@ export class AdminService {
         { user_name: { [Op.iLike]: like } },
         { email: { [Op.iLike]: like } },
       ];
+    }
+
+    // Date range filter
+    if (params?.dateFrom || params?.dateTo) {
+      const dateFilter: any = {};
+      if (params.dateFrom) {
+        dateFilter[Op.gte] = new Date(params.dateFrom);
+      }
+      if (params.dateTo) {
+        dateFilter[Op.lte] = new Date(params.dateTo + 'T23:59:59.999Z');
+      }
+      whereUser.createdAt = dateFilter;
     }
 
     const { count, rows } = await this.userModel.findAndCountAll({

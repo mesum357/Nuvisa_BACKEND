@@ -45,11 +45,14 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swagConfig);
   SwaggerModule.setup("api", app, document);
 
+  // CORS Configuration
+  const allowedOrigins = Env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
+  
   app.enableCors({
-    origin: "*",
-    // methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    // allowedHeaders: ['Content-Type', 'Authorization'],
-    // credentials: true,
+    origin: allowedOrigins,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-origin', 'x-admin-proxy'],
+    credentials: true,
   });
 
   app.useGlobalPipes(

@@ -109,6 +109,44 @@ export class ExportApplicationsDto {
 
   @IsOptional()
   filters?: SearchApplicationsDto;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+}
+
+export class ExportUsersDto {
+  @IsOptional()
+  @IsIn(['csv', 'xlsx'])
+  format?: 'csv' | 'xlsx';
+
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  endDate?: string;
 }
 
 export class SendNotificationDto {

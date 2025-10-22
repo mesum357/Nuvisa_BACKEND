@@ -18,28 +18,50 @@ export class AuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
+    
+    console.log('AuthGuard: Starting authentication check');
+    console.log('AuthGuard: Request headers:', {
+      authorization: request.headers.authorization,
+      'x-admin-origin': request.headers['x-admin-origin'],
+      'x-admin-proxy': request.headers['x-admin-proxy'],
+      origin: request.headers.origin,
+      referer: request.headers.referer
+    });
 
     // Allowlisted origins or admin proxy can bypass auth (e.g., Admin at localhost:3001)
     try {
       const originHeader = (request.headers["x-admin-origin"] as string) || (request.headers["origin"] as string) || (request.headers["referer"] as string) || undefined;
       const adminProxy = request.headers["x-admin-proxy"] === "1";
-      const allowList = (process.env.ALLOW_ORIGIN_NOAUTH || "http://localhost:3001").split(",").map((o) => o.trim());
+      const allowList = (process.env.ALLOW_ORIGIN_NOAUTH || "http://localhost:3001,http://localhost:3000").split(",").map((o) => o.trim());
+      
+      console.log('AuthGuard: Origin check:', { originHeader, adminProxy, allowList });
+      
       if ((adminProxy && originHeader && allowList.some((o) => originHeader.startsWith(o))) || (originHeader && allowList.some((o) => originHeader.startsWith(o)))) {
+        console.log('AuthGuard: Bypassing auth due to allowlisted origin');
         return true;
       }
-    } catch {}
+    } catch (error) {
+      console.log('AuthGuard: Error in origin check:', error);
+    }
 
     const token = this.extractTokenFromHeader(request);
+    console.log('AuthGuard: Extracted token:', token ? 'Present' : 'Missing');
+    
     if (!token) {
+      console.log('AuthGuard: No token found, throwing exception');
       callHTTPException("UnauthorizedException");
       // throw new UnauthorizedException();
     }
     try {
+      console.log('AuthGuard: Verifying token...');
       const user = await this.jwtService.verifyAsync(token, {
         secret: Env.jwt_secret,
       });
 
+      console.log('AuthGuard: Token verified, user payload:', user);
+
       if (!user) {
+        console.log('AuthGuard: User payload is null/undefined');
         callHTTPException("UnauthorizedException");
         // throw new UnauthorizedException();
       }
@@ -50,6 +72,8 @@ export class AuthGuard implements CanActivate {
       const first_name = user["_first_name"];
       const user_type = user["_user_type"];
 
+      console.log('AuthGuard: Extracted user data:', { user_id, user_email, user_name, first_name, user_type });
+
       request.user = {
         id: user_id,
         email: user_email,
@@ -58,16 +82,24 @@ export class AuthGuard implements CanActivate {
         user_type: user_type,
       };
 
-      let isUserExist = await await User.findOne({
+      console.log('AuthGuard: Set request.user:', request.user);
+
+      let isUserExist = await User.findOne({
         where: { id: user_id },
       });
+      
+      console.log('AuthGuard: User exists in DB:', isUserExist ? 'Yes' : 'No');
+      
       if (!isUserExist) {
+        console.log('AuthGuard: User not found in database, throwing exception');
         callHTTPException("UnauthorizedException");
         // throw new UnauthorizedException();
       }
 
+      console.log('AuthGuard: Authentication successful');
       return true;
     } catch (err) {
+      console.log('AuthGuard: Error during authentication:', err);
       if (err instanceof TokenExpiredError) {
         callHTTPException("UnauthorizedException");
       } else {

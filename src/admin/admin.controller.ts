@@ -18,7 +18,9 @@ import {
   GetApplicationDetailsDto,
   DocumentStatusUpdateDto,
   ExportApplicationsDto,
-  SendNotificationDto
+  ExportUsersDto,
+  SendNotificationDto,
+  ApplicationStatus
 } from './dto';
 import { GetObjectTemplateForAPIResponseGeneral } from '../shared/data_templates/ObjectTemplateForAPIResponse';
 import { EnumAPIResponseStatusType } from '../shared/enums';
@@ -90,6 +92,8 @@ export class AdminController {
     @Query('search') search: string,
     @Query('sortBy') sortBy: string,
     @Query('sortOrder') sortOrder: 'ASC' | 'DESC',
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
   ) {
     try {
       const data = await this.adminService.getBackendUsers({
@@ -98,6 +102,8 @@ export class AdminController {
         search,
         sortBy,
         sortOrder,
+        dateFrom,
+        dateTo,
       });
       return GetObjectTemplateForAPIResponseGeneral(
         EnumAPIResponseStatusType.SUCCESS,
@@ -335,17 +341,37 @@ export class AdminController {
   @UsePipes(ValidationPipe)
   async exportApplications(@Body() exportDto: ExportApplicationsDto, @Req() request: any) {
     try {
-      const mockExportData = {
-        format: exportDto.format || 'csv',
-        filename: `applications_export_${new Date().toISOString().split('T')[0]}.${exportDto.format || 'csv'}`,
-        downloadUrl: '#',
-        recordCount: 100
-      };
+      const applications = await this.adminService.searchApplications({
+        page: '1',
+        limit: '10000', // Large limit for export
+        status: exportDto.status as ApplicationStatus,
+        query: exportDto.search,
+        dateFrom: exportDto.startDate,
+        dateTo: exportDto.endDate,
+      });
+
+      const exportData = applications.data.map((app: any) => ({
+        'Application ID': app.id,
+        'Order ID': app.orderId,
+        'User Name': app.user?.name || '',
+        'User Email': app.user?.email || '',
+        'Phone': app.user?.phone || '',
+        'Status': app.applicationStatus || app.status,
+        'Total Amount': app.amountPaidTotal || app.totalAmount || 0,
+        'Paid Amount': app.amountPaid || app.paidAmount || 0,
+        'Created At': app.createdAt ? new Date(app.createdAt).toLocaleDateString() : '',
+        'Updated At': app.updatedAt ? new Date(app.updatedAt).toLocaleDateString() : '',
+      }));
 
       return GetObjectTemplateForAPIResponseGeneral(
         EnumAPIResponseStatusType.SUCCESS,
-        mockExportData,
-        'Export prepared successfully'
+        {
+          format: exportDto.format || 'csv',
+          filename: `applications_export_${new Date().toISOString().split('T')[0]}.${exportDto.format || 'csv'}`,
+          data: exportData,
+          recordCount: exportData.length
+        },
+        'Export data retrieved successfully'
       );
     } catch (error) {
       console.error('Error in exportApplications:', error);
@@ -354,9 +380,99 @@ export class AdminController {
   }
 
   /**
-   * POST /orders/application/:id/notify
-   * Send notification to traveler
+   * POST /orders/export/users
+   * Export users data
    */
+  @Post('export/users')
+  @UsePipes(ValidationPipe)
+  async exportUsers(@Body() exportDto: ExportUsersDto, @Req() request: any) {
+    try {
+      const users = await this.adminService.getBackendUsers({
+        page: 1,
+        limit: 10000, // Large limit for export
+        search: exportDto.search,
+        sortBy: 'createdAt',
+        sortOrder: 'DESC',
+        dateFrom: exportDto.startDate,
+        dateTo: exportDto.endDate,
+      });
+
+      const exportData = users.data.map((user: any) => ({
+        'User ID': user.id,
+        'Name': user.name || '',
+        'Email': user.email || '',
+        'Phone': user.phone || '',
+        'Status': user.status || '',
+        'Verified': user.isVerified ? 'Yes' : 'No',
+        'Email Verified': user.emailVerified ? 'Yes' : 'No',
+        'Applications Count': user.applicationsCount || 0,
+        'Created At': user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '',
+        'Updated At': user.updatedAt ? new Date(user.updatedAt).toLocaleDateString() : '',
+      }));
+
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        {
+          format: exportDto.format || 'csv',
+          filename: `users_export_${new Date().toISOString().split('T')[0]}.${exportDto.format || 'csv'}`,
+          data: exportData,
+          recordCount: exportData.length
+        },
+        'Export data retrieved successfully'
+      );
+    } catch (error) {
+      console.error('Error in exportUsers:', error);
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
+   * GET /orders/application/:id/comments
+   * Get application comments
+   */
+  @Get('application/:id/comments')
+  async getApplicationComments(@Param('id') applicationId: string, @Req() request: any) {
+    try {
+      const data = await this.adminService.getApplicationComments(applicationId);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Application comments fetched successfully'
+      );
+    } catch (error) {
+      console.error('Error in getApplicationComments:', error);
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
+   * POST /orders/application/:id/comments
+   * Add comment to application
+   */
+  @Post('application/:id/comments')
+  async addApplicationComment(
+    @Param('id') applicationId: string,
+    @Body() body: { comment: string; isInternal: boolean; adminId?: string; adminEmail?: string },
+    @Req() request: any
+  ) {
+    try {
+      const data = await this.adminService.addApplicationComment({
+        applicationId,
+        comment: body.comment,
+        isInternal: body.isInternal,
+        adminId: body.adminId || request.user?.id,
+        adminEmail: body.adminEmail || request.user?.email
+      });
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Comment added successfully'
+      );
+    } catch (error) {
+      console.error('Error in addApplicationComment:', error);
+      callHTTPException(error.message);
+    }
+  }
   @Post('application/:id/notify')
   @UsePipes(ValidationPipe)
   async sendNotification(
