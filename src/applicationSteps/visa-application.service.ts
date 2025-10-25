@@ -1349,7 +1349,13 @@ export class VisaApplicationService {
               );
 
               if (this.areAllTravelersCompleted(travelersData, application)) {
-                application.applicationStatus = "submitted";
+                // Only auto-update status if it's in user-controlled states
+                // Don't override admin-set statuses
+                const userControlledStatuses = ["new", "payment_required"];
+                if (userControlledStatuses.includes(application.applicationStatus)) {
+                  application.applicationStatus = "submitted";
+                }
+                // If status is admin-controlled, preserve it regardless of completion status
               }
             } catch (err) {
               console.error("Error processing payment step:", err);
@@ -1363,7 +1369,13 @@ export class VisaApplicationService {
             );
 
             if (this.areAllTravelersCompleted(dto.travelersData, application)) {
-              application.applicationStatus = "submitted";
+              // Only auto-update status if it's in user-controlled states
+              // Don't override admin-set statuses
+              const userControlledStatuses = ["new", "payment_required"];
+              if (userControlledStatuses.includes(application.applicationStatus)) {
+                application.applicationStatus = "submitted";
+              }
+              // If status is admin-controlled, preserve it regardless of completion status
             }
           }
         }
@@ -2339,13 +2351,21 @@ export class VisaApplicationService {
     // }
 
     if (this.areAllTravelersCompleted(travelersData, application)) {
-      if (
-        application.applicationStatus !== "submitted" &&
-        application.applicationStatus !== "payment_required"
-      ) {
+      // Only auto-update status if it's in user-controlled states
+      // Don't override admin-set statuses
+      const userControlledStatuses = ["new", "payment_required"];
+      const adminControlledStatuses = [
+        "under_review", "processing", "approved", "rejected", "cancelled",
+        "at_embassy", "appointment_booked", "completed", "draft"
+      ];
+      
+      if (userControlledStatuses.includes(application.applicationStatus)) {
         application.applicationStatus = "submitted";
       }
+      // If status is admin-controlled, preserve it regardless of completion status
     } else {
+      // Only reset to "new" if currently "submitted" (user-controlled state)
+      // Don't reset admin-controlled statuses
       if (application.applicationStatus === "submitted") {
         application.applicationStatus = "new";
       }
