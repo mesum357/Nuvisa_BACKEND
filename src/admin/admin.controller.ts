@@ -501,4 +501,113 @@ export class AdminController {
       callHTTPException(error.message);
     }
   }
+
+  /**
+   * Email Template Management Endpoints
+   */
+
+  /**
+   * GET /orders/email-templates
+   * Get all email templates
+   */
+  @Get('email-templates')
+  async getEmailTemplates() {
+    try {
+      const data = await this.adminService.getEmailTemplates();
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Email templates fetched successfully'
+      );
+    } catch (error) {
+      console.error('Error in getEmailTemplates:', error);
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
+   * GET /orders/email-templates/:key
+   * Get a specific email template by key
+   */
+  @Get('email-templates/:key')
+  async getEmailTemplateByKey(@Param('key') key: string) {
+    try {
+      const data = await this.adminService.getEmailTemplateByKey(key);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Email template fetched successfully'
+      );
+    } catch (error) {
+      console.error('Error in getEmailTemplateByKey:', error);
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
+   * POST /orders/email-templates
+   * Create a new email template
+   */
+  @Post('email-templates')
+  async createEmailTemplate(@Body() body: any, @Req() request: any) {
+    try {
+      const data = await this.adminService.createEmailTemplate({
+        ...body,
+        updatedBy: request.user?.email,
+      });
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Email template created successfully'
+      );
+    } catch (error) {
+      console.error('Error in createEmailTemplate:', error);
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
+   * PATCH /orders/email-templates/:id
+   * Update an existing email template
+   */
+  @Patch('email-templates/:id')
+  async updateEmailTemplate(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() request: any
+  ) {
+    try {
+      const data = await this.adminService.updateEmailTemplate(id, {
+        ...body,
+        updatedBy: request.user?.email,
+      });
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Email template updated successfully'
+      );
+    } catch (error) {
+      console.error('Error in updateEmailTemplate:', error);
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
+   * DELETE /orders/email-templates/:id
+   * Delete an email template
+   */
+  @Post('email-templates/:id/delete')
+  async deleteEmailTemplate(@Param('id') id: string) {
+    try {
+      const data = await this.adminService.deleteEmailTemplate(id);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Email template deleted successfully'
+      );
+    } catch (error) {
+      console.error('Error in deleteEmailTemplate:', error);
+      callHTTPException(error.message);
+    }
+  }
 }

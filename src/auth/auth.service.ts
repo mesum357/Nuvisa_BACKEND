@@ -10,16 +10,22 @@ import { callHTTPException } from "src/shared/exceptions";
 import {
   sendEmail,
   renderTemplate,
+  renderTemplateFromDB,
 } from "src/shared/services/sendEmail.service";
+import { EmailTemplate } from "src/email-templates/email-template.entity";
 import { UpdateUserDto, VefifyOtpDto } from "./dto/auth.dto";
 import { Op } from "sequelize";
+import { Sequelize } from "sequelize-typescript";
 
 import { Env } from "src/shared/config";
 
 //auth
 @Injectable()
 export class AuthService {
-  constructor(private readonly jwtAuthService: JwtAuthService) { }
+  constructor(
+    private readonly jwtAuthService: JwtAuthService,
+    private readonly sequelize: Sequelize
+  ) { }
 
   async checkIfUserExists(email: string): Promise<User> {
     const user = await User.findOne({
@@ -227,14 +233,122 @@ export class AuthService {
         otp,
       };
 
-      const { subject, emailBody } = renderTemplate(emailType, dynamicData);
-      await sendEmail({
-        emailAddress: dynamicData.email,
-        subject,
-        body: emailBody,
-      });
+      // Try to use database template first
+      try {
+        const template = await EmailTemplate.findOne({
+          where: { key: emailType, isActive: true }
+        });
+
+        if (template) {
+          const { subject, emailBody } = await renderTemplateFromDB(
+            emailType,
+            dynamicData,
+            template
+          );
+          
+          const footerContent = await this.getEmailFooterContent();
+          
+          await sendEmail(
+            {
+              emailAddress: dynamicData.email,
+              subject,
+              body: emailBody,
+            },
+            footerContent
+          );
+        } else {
+          // Fallback to static templates
+          const { subject, emailBody } = await renderTemplate(emailType, dynamicData);
+          const footerContent = await this.getEmailFooterContent();
+          await sendEmail(
+            {
+              emailAddress: dynamicData.email,
+              subject,
+              body: emailBody,
+            },
+            footerContent
+          );
+        }
+      } catch (templateError) {
+        // Fallback to static templates
+        const { subject, emailBody } = await renderTemplate(emailType, dynamicData);
+        const footerContent = await this.getEmailFooterContent();
+        await sendEmail(
+          {
+            emailAddress: dynamicData.email,
+            subject,
+            body: emailBody,
+          },
+          footerContent
+        );
+      }
     } catch {
       callHTTPException("Something went wrong while sending welcome email");
+    }
+  }
+
+  /**
+   * Get email footer content (logo, social links, etc.)
+   */
+  private async getEmailFooterContent(): Promise<any> {
+    try {
+      // Try to query site_content table for logo URL and social links
+      let logoUrl = '';
+      let twitter = '#';
+      let facebook = '#';
+      let instagram = '#';
+      let linkedin = '#';
+      
+      try {
+        // Try to get from backend database first
+        const logoContent = await this.sequelize.query(`
+          SELECT value FROM site_content WHERE key = 'email_logo_url' LIMIT 1
+        `) as any[];
+        logoUrl = logoContent?.[0]?.[0]?.value || '';
+        
+        // If not found, check common paths
+        if (!logoUrl) {
+          // Try common logo paths as fallback
+          logoUrl = '/uploads/logos/logo.png';
+        }
+        
+        const socialLinks = await this.sequelize.query(`
+          SELECT key, value FROM site_content WHERE key IN ('social_twitter', 'social_facebook', 'social_instagram', 'social_linkedin')
+        `) as any[];
+        
+        socialLinks.forEach((link: any) => {
+          const key = link.key.replace('social_', '');
+          if (key === 'twitter') twitter = link.value || '#';
+          if (key === 'facebook') facebook = link.value || '#';
+          if (key === 'instagram') instagram = link.value || '#';
+          if (key === 'linkedin') linkedin = link.value || '#';
+        });
+      } catch (queryError) {
+        // site_content table might not exist in backend database
+        logoUrl = '';
+      }
+
+      const footerContent = {
+        logo: logoUrl,
+        twitter,
+        facebook,
+        instagram,
+        linkedin,
+        companyInfo: [
+          'If you would like to find out more about NUvisa, please reach out to us via support@nuvisa.co.uk. NUvisa Ltd (No. 08804411) is an independent visa assistance company.'
+        ]
+      };
+
+      return footerContent;
+    } catch (error) {
+      return {
+        logo: '',
+        twitter: '#',
+        facebook: '#',
+        instagram: '#',
+        linkedin: '#',
+        companyInfo: []
+      };
     }
   }
 }
