@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { VisaApplication } from '../applicationSteps/visa-application.entity';
 import { User } from '../auth/auth.entity';
+import { EmailTemplate } from '../email-templates/email-template.entity';
 import { Op, QueryTypes, where, col, cast, fn, col as sqCol, literal } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import {
@@ -11,7 +12,7 @@ import {
   ApplicationStatus,
   SearchType
 } from './dto';
-import { sendEmail, renderTemplate } from '../shared/services/sendEmail.service';
+import { sendEmail, renderTemplate, renderTemplateFromDB } from '../shared/services/sendEmail.service';
 
 @Injectable()
 export class AdminService {
@@ -20,6 +21,8 @@ export class AdminService {
     private visaApplicationModel: typeof VisaApplication,
     @InjectModel(User)
     private userModel: typeof User,
+    @InjectModel(EmailTemplate)
+    private emailTemplateModel: typeof EmailTemplate,
     private sequelize: Sequelize
   ) {}
 
@@ -478,19 +481,83 @@ export class AdminService {
 
         const message = statusMessages[updateDto.status] || `Your application status has been updated to: ${updateDto.status}`;
         
-        await sendEmail({
-          emailAddress: application.email,
-          subject: `Visa Application Status Update - ${updateDto.status.toUpperCase()}`,
-          body: `
-            <p>Dear Applicant,</p>
-            <p>Your visa application status has been updated:</p>
-            <p><strong>Previous Status:</strong> ${oldStatus || 'Unknown'}</p>
-            <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
-            <p><strong>Message:</strong> ${message}</p>
-            ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
-            <p>Please log in to your account to view more details.</p>
-          `
-        });
+        // Try to use database template
+        try {
+          const template = await this.emailTemplateModel.findOne({
+            where: { key: 'status_update', isActive: true }
+          });
+
+          if (template) {
+            // Extract user name from travelersData if available
+            let userName = 'Applicant';
+            try {
+              if (application.travelersData && typeof application.travelersData === 'object') {
+                const travelers = application.travelersData;
+                if (Array.isArray(travelers) && travelers.length > 0) {
+                  const firstTraveler = travelers[0];
+                  userName = (firstTraveler.firstName && firstTraveler.lastName) 
+                    ? `${firstTraveler.firstName} ${firstTraveler.lastName}`
+                    : firstTraveler.firstName || firstTraveler.lastName || 'Applicant';
+                }
+              }
+            } catch (err) {
+              // Keep default userName if extraction fails
+            }
+
+            const { subject: emailSubject, emailBody } = await renderTemplateFromDB(
+              'status_update',
+              {
+                userName: userName,
+                status: updateDto.status.toUpperCase(),
+                oldStatus: oldStatus || 'Unknown',
+                message: message,
+                notes: updateDto.notes || '',
+              },
+              template
+            );
+            
+            const footerContent = await this.getEmailFooterContent();
+            
+            await sendEmail(
+              {
+                emailAddress: application.email,
+                subject: emailSubject,
+                body: emailBody,
+              },
+              footerContent
+            );
+          } else {
+            // Fallback to hardcoded template
+            await sendEmail({
+              emailAddress: application.email,
+              subject: `Visa Application Status Update - ${updateDto.status.toUpperCase()}`,
+              body: `
+                <p>Dear Applicant,</p>
+                <p>Your visa application status has been updated:</p>
+                <p><strong>Previous Status:</strong> ${oldStatus || 'Unknown'}</p>
+                <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
+                <p><strong>Message:</strong> ${message}</p>
+                ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
+                <p>Please log in to your account to view more details.</p>
+              `
+            });
+          }
+        } catch (templateError) {
+          // Fallback to hardcoded email
+          await sendEmail({
+            emailAddress: application.email,
+            subject: `Visa Application Status Update - ${updateDto.status.toUpperCase()}`,
+            body: `
+              <p>Dear Applicant,</p>
+              <p>Your visa application status has been updated:</p>
+              <p><strong>Previous Status:</strong> ${oldStatus || 'Unknown'}</p>
+              <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
+              <p><strong>Message:</strong> ${message}</p>
+              ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
+              <p>Please log in to your account to view more details.</p>
+            `
+          });
+        }
         
         console.log(`Email notification sent to ${application.email} for status change from ${oldStatus} to ${updateDto.status}`);
       } catch (emailError) {
@@ -1185,5 +1252,185 @@ export class AdminService {
       '12': 'invitation-letter'
     };
     return typeMap[typeId] || 'document';
+  }
+
+  /**
+   * Email Template Management Methods
+   */
+
+  /**
+   * Get all email templates
+   */
+  async getEmailTemplates(): Promise<any> {
+    try {
+      const templates = await this.emailTemplateModel.findAll({
+        order: [['name', 'ASC']],
+      });
+      return templates;
+    } catch (error) {
+      console.error('Error fetching email templates:', error);
+      throw new Error('Failed to fetch email templates');
+    }
+  }
+
+  /**
+   * Get a specific email template by key
+   */
+  async getEmailTemplateByKey(key: string): Promise<any> {
+    try {
+      const template = await this.emailTemplateModel.findOne({
+        where: { key },
+      });
+      return template;
+    } catch (error) {
+      console.error('Error fetching email template:', error);
+      throw new Error('Failed to fetch email template');
+    }
+  }
+
+  /**
+   * Create a new email template
+   */
+  async createEmailTemplate(data: {
+    key: string;
+    name: string;
+    subject: string;
+    body: string;
+    description?: string;
+    updatedBy?: string;
+  }): Promise<any> {
+    try {
+      const template = await this.emailTemplateModel.create({
+        key: data.key,
+        name: data.name,
+        subject: data.subject,
+        body: data.body,
+        description: data.description,
+        updatedBy: data.updatedBy,
+        isActive: true,
+      });
+      return template;
+    } catch (error) {
+      console.error('Error creating email template:', error);
+      throw new Error('Failed to create email template');
+    }
+  }
+
+  /**
+   * Update an existing email template
+   */
+  async updateEmailTemplate(
+    id: string,
+    data: {
+      name?: string;
+      subject?: string;
+      body?: string;
+      description?: string;
+      isActive?: boolean;
+      updatedBy?: string;
+    }
+  ): Promise<any> {
+    try {
+      const template = await this.emailTemplateModel.findByPk(id);
+      if (!template) {
+        throw new Error('Email template not found');
+      }
+
+      const updateData: any = {};
+      if (data.name !== undefined) updateData.name = data.name;
+      if (data.subject !== undefined) updateData.subject = data.subject;
+      if (data.body !== undefined) updateData.body = data.body;
+      if (data.description !== undefined) updateData.description = data.description;
+      if (data.isActive !== undefined) updateData.isActive = data.isActive;
+      if (data.updatedBy !== undefined) updateData.updatedBy = data.updatedBy;
+
+      await template.update(updateData);
+      return template;
+    } catch (error) {
+      console.error('Error updating email template:', error);
+      throw new Error('Failed to update email template');
+    }
+  }
+
+  /**
+   * Delete an email template
+   */
+  async deleteEmailTemplate(id: string): Promise<any> {
+    try {
+      const template = await this.emailTemplateModel.findByPk(id);
+      if (!template) {
+        throw new Error('Email template not found');
+      }
+      await template.destroy();
+      return { success: true, message: 'Email template deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting email template:', error);
+      throw new Error('Failed to delete email template');
+    }
+  }
+
+  /**
+   * Get email footer content (logo, social links, etc.)
+   */
+  private async getEmailFooterContent(): Promise<any> {
+    try {
+      // Try to query site_content table for logo URL and social links
+      let logoUrl = '';
+      let twitter = '#';
+      let facebook = '#';
+      let instagram = '#';
+      let linkedin = '#';
+      
+      try {
+        // Try to get from backend database first
+        const logoContent = await this.sequelize.query(`
+          SELECT value FROM site_content WHERE key = 'email_logo_url' LIMIT 1
+        `) as any[];
+        logoUrl = logoContent?.[0]?.[0]?.value || '';
+        
+        // If not found, check common paths
+        if (!logoUrl) {
+          // Try common logo paths as fallback
+          logoUrl = '/uploads/logos/logo.png';
+        }
+        
+        const socialLinks = await this.sequelize.query(`
+          SELECT key, value FROM site_content WHERE key IN ('social_twitter', 'social_facebook', 'social_instagram', 'social_linkedin')
+        `) as any[];
+        
+        socialLinks.forEach((link: any) => {
+          const key = link.key.replace('social_', '');
+          if (key === 'twitter') twitter = link.value || '#';
+          if (key === 'facebook') facebook = link.value || '#';
+          if (key === 'instagram') instagram = link.value || '#';
+          if (key === 'linkedin') linkedin = link.value || '#';
+        });
+      } catch (queryError) {
+        // site_content table might not exist in backend database
+        logoUrl = '';
+      }
+
+      const footerContent = {
+        logo: logoUrl,
+        twitter,
+        facebook,
+        instagram,
+        linkedin,
+        companyInfo: [
+          'If you would like to find out more about NUvisa, please reach out to us via support@nuvisa.co.uk. NUvisa Ltd (No. 08804411) is an independent visa assistance company.'
+        ]
+      };
+
+      return footerContent;
+    } catch (error) {
+      return {
+        logo: '',
+        twitter: '#',
+        facebook: '#',
+        instagram: '#',
+        linkedin: '#',
+        companyInfo: []
+      };
+    }
   }
 }
