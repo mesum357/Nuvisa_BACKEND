@@ -1,12 +1,13 @@
 import {
   Controller,
   Post,
+  Put,
   Body,
   UsePipes,
   ValidationPipe,
 } from "@nestjs/common";
 import { AuthService } from "./auth.service";
-import { LoginDto, VefifyOtpDto } from "./dto";
+import { LoginDto, VefifyOtpDto, UpdateUserDto } from "./dto";
 import { VisaAPiAuthService } from "src/shared/services/getAuthToken.service";
 
 import {
@@ -74,6 +75,23 @@ export class AuthController {
         EnumAPIResponseStatusType.SUCCESS,
         tokenResponse,
         "SMV Konveyor auth token generated successfully."
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
+
+  @Put("update-user")
+  @UsePipes(ValidationPipe)
+  async updateUser(
+    @Body() updateUserDto: UpdateUserDto
+  ): Promise<typeof ObjectTemplateForAPIResponseGeneral | null> {
+    try {
+      const updated = await this.authService.updateUser(null, updateUserDto);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        updated,
+        "User updated successfully."
       );
     } catch (error) {
       callHTTPException(error.message);

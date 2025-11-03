@@ -77,6 +77,12 @@ export default {
 
   MAILER_FROM_EMAIL: process.env.MAILER_FROM_EMAIL,
 
+  // SMTP Configuration for mail.privateemail.com
+  SMTP_HOST: process.env.SMTP_HOST,
+  SMTP_PORT: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587,
+  SMTP_USER: process.env.SMTP_USER,
+  SMTP_PASS: process.env.SMTP_PASS,
+
   VISA_API_VERSION: process.env.API_VERSION,
   VISA_API_SERVER: process.env.API_SERVER,
   VISA_API_CLIENT_ID: process.env.CLIENT_ID,

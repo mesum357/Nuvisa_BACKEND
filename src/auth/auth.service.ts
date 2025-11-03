@@ -308,8 +308,8 @@ export class AuthService {
         
         // If not found, check common paths
         if (!logoUrl) {
-          // Try common logo paths as fallback
-          logoUrl = '/uploads/logos/logo.png';
+          // Try common logo paths as fallback (public logo on live frontend)
+          logoUrl = '/image/logo.png';
         }
         
         const socialLinks = await this.sequelize.query(`
@@ -326,6 +326,11 @@ export class AuthService {
       } catch (queryError) {
         // site_content table might not exist in backend database
         logoUrl = '';
+      }
+
+      // Global fallback if DB lookup failed entirely
+      if (!logoUrl) {
+        logoUrl = '/image/logo.png';
       }
 
       const footerContent = {
