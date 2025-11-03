@@ -12,22 +12,39 @@ export async function sendEmail(emailMeta, footerContent?: any) {
     }
 
     // Convert relative logo URLs to absolute URLs
+    let attachments: any[] | undefined;
     if (footerContent?.logo && footerContent.logo.trim() !== '') {
       if (!footerContent.logo.startsWith('http')) {
         const baseUrl = Env.WEBSITE_URL || 'https://nuvisa.co.uk';
         const cleanPath = footerContent.logo.startsWith('/') ? footerContent.logo : `/${footerContent.logo}`;
         footerContent.logo = `${baseUrl}${cleanPath}`;
       }
+
+      // Embed logo as inline attachment to avoid remote image blocking in email clients
+      const logoCid = 'nuvisa-logo';
+      footerContent.logo_cid = logoCid;
+      attachments = [
+        {
+          filename: 'logo.png',
+          path: footerContent.logo,
+          cid: logoCid,
+        },
+      ];
     }
 
     const emailTemplate = getEmailTemplateHeaderFooter(body, footerContent);
 
-    const mailOptions = {
-      from: Env.MAILER_FROM_EMAIL,
+    const mailOptions: any = {
+      from: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk",
+      replyTo: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk",
       to: emailAddress,
       subject: subject,
       html: emailTemplate,
     };
+
+    if (attachments && attachments.length > 0) {
+      mailOptions.attachments = attachments;
+    }
 
     const result = await transporter.sendMail(mailOptions);
     return result;
@@ -40,10 +57,11 @@ export async function sendEmail(emailMeta, footerContent?: any) {
 const getEmailTemplateHeaderFooter = (emailContent, footerContent?: any) => {
   // Get logo URL
   const logoUrl = footerContent?.logo || '';
+  const logoSrc = footerContent?.logo_cid ? `cid:${footerContent.logo_cid}` : logoUrl;
   
   // Logo HTML - use image if available, otherwise use text
-  const logoHTML = logoUrl
-    ? `<img src="${logoUrl}" alt="NUvisa" style="max-width: 150px; height: auto; margin: 0 auto; display: block;">`
+  const logoHTML = (logoUrl || footerContent?.logo_cid)
+    ? `<img src="${logoSrc}" alt="NUvisa" style="max-width: 150px; height: auto; margin: 0 auto; display: block;">`
     : '<h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #000000; letter-spacing: -0.5px;">NUvisa</h1>';
   
   // Build social media links
@@ -147,8 +165,8 @@ const getEmailTemplateHeaderFooter = (emailContent, footerContent?: any) => {
           <!-- Bottom Logo -->
           <tr>
             <td style="padding: 20px 40px 40px 40px; text-align: center; border-top: 1px solid #e5e5e5;">
-              ${logoUrl 
-                ? `<img src="${logoUrl}" alt="NUvisa" style="max-width: 100px; height: auto; margin: 0 auto; display: block; opacity: 0.7;">`
+              ${(logoUrl || footerContent?.logo_cid) 
+                ? `<img src="${logoSrc}" alt="NUvisa" style="max-width: 100px; height: auto; margin: 0 auto; display: block; opacity: 0.7;">`
                 : '<h2 style="margin: 0; font-size: 14px; font-weight: 400; color: #666666; letter-spacing: 0.5px;">NUvisa</h2>'
               }
             </td>
