@@ -528,7 +528,29 @@ export class AdminService {
             );
           } else {
             // Fallback to hardcoded template
-            await sendEmail({
+            const footerContent = await this.getEmailFooterContent();
+            await sendEmail(
+              {
+                emailAddress: application.email,
+                subject: `Visa Application Status Update - ${updateDto.status.toUpperCase()}`,
+                body: `
+                  <p>Dear Applicant,</p>
+                  <p>Your visa application status has been updated:</p>
+                  <p><strong>Previous Status:</strong> ${oldStatus || 'Unknown'}</p>
+                  <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
+                  <p><strong>Message:</strong> ${message}</p>
+                  ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
+                  <p>Please log in to your account to view more details.</p>
+                `
+              },
+              footerContent
+            );
+          }
+        } catch (templateError) {
+          // Fallback to hardcoded email
+          const footerContent = await this.getEmailFooterContent();
+          await sendEmail(
+            {
               emailAddress: application.email,
               subject: `Visa Application Status Update - ${updateDto.status.toUpperCase()}`,
               body: `
@@ -540,23 +562,9 @@ export class AdminService {
                 ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
                 <p>Please log in to your account to view more details.</p>
               `
-            });
-          }
-        } catch (templateError) {
-          // Fallback to hardcoded email
-          await sendEmail({
-            emailAddress: application.email,
-            subject: `Visa Application Status Update - ${updateDto.status.toUpperCase()}`,
-            body: `
-              <p>Dear Applicant,</p>
-              <p>Your visa application status has been updated:</p>
-              <p><strong>Previous Status:</strong> ${oldStatus || 'Unknown'}</p>
-              <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
-              <p><strong>Message:</strong> ${message}</p>
-              ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
-              <p>Please log in to your account to view more details.</p>
-            `
-          });
+            },
+            footerContent
+          );
         }
         
         console.log(`Email notification sent to ${application.email} for status change from ${oldStatus} to ${updateDto.status}`);
@@ -1390,8 +1398,8 @@ export class AdminService {
         
         // If not found, check common paths
         if (!logoUrl) {
-          // Try common logo paths as fallback
-          logoUrl = '/uploads/logos/logo.png';
+          // Try common logo paths as fallback (public logo on live frontend)
+          logoUrl = '/image/logo.png';
         }
         
         const socialLinks = await this.sequelize.query(`
@@ -1408,6 +1416,11 @@ export class AdminService {
       } catch (queryError) {
         // site_content table might not exist in backend database
         logoUrl = '';
+      }
+
+      // Global fallback if DB lookup failed entirely
+      if (!logoUrl) {
+        logoUrl = '/image/logo.png';
       }
 
       const footerContent = {
