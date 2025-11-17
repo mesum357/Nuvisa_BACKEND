@@ -13,6 +13,7 @@ import {
   SearchType
 } from './dto';
 import { sendEmail, renderTemplate, renderTemplateFromDB } from '../shared/services/sendEmail.service';
+import { Env } from '../shared/config';
 
 @Injectable()
 export class AdminService {
@@ -471,7 +472,7 @@ export class AdminService {
           'submitted': 'Your application has been submitted and is being reviewed.',
           'under_review': 'Your application is now under review by our team.',
           'processing': 'Your application is being processed.',
-          'appointment_booked': 'Your appointment has been booked. Please check your email for details.',
+          'appointment_booked': 'Your appointment has been booked.',
           'at_embassy': 'Your application is now at the embassy for final processing.',
           'approved': 'Congratulations! Your visa application has been approved.',
           'completed': 'Your visa application has been completed successfully.',
@@ -1423,6 +1424,9 @@ export class AdminService {
         logoUrl = '/image/logo.png';
       }
 
+      const baseUrl = Env.WEBSITE_URL || 'https://nuvisa.co.uk';
+      const helpCentreUrl = `${baseUrl}/get-the-visa#faq`;
+      
       const footerContent = {
         logo: logoUrl,
         twitter,
@@ -1430,7 +1434,7 @@ export class AdminService {
         instagram,
         linkedin,
         companyInfo: [
-          'If you would like to find out more about NUvisa, please reach out to us via support@nuvisa.co.uk. NUvisa Ltd (No. 08804411) is an independent visa assistance company.'
+          `If you have any questions, please visit our <a href="${helpCentreUrl}" style="color: #000000; text-decoration: underline;">Help Centre</a>.`
         ]
       };
 

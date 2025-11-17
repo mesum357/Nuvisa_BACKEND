@@ -253,6 +253,7 @@ export class AuthService {
               emailAddress: dynamicData.email,
               subject,
               body: emailBody,
+              excludeDecorativeImage: true,
             },
             footerContent
           );
@@ -265,6 +266,7 @@ export class AuthService {
               emailAddress: dynamicData.email,
               subject,
               body: emailBody,
+              excludeDecorativeImage: true,
             },
             footerContent
           );
@@ -278,6 +280,7 @@ export class AuthService {
             emailAddress: dynamicData.email,
             subject,
             body: emailBody,
+            excludeDecorativeImage: true,
           },
           footerContent
         );

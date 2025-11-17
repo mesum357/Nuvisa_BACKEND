@@ -5,7 +5,7 @@ import { Env } from "../config";
 
 export async function sendEmail(emailMeta, footerContent?: any) {
   try {
-    const { emailAddress, subject, body } = emailMeta;
+    const { emailAddress, subject, body, excludeDecorativeImage } = emailMeta;
     
     if (!emailAddress || !subject) {
       throw new Error("Email address and subject are required");
@@ -13,9 +13,10 @@ export async function sendEmail(emailMeta, footerContent?: any) {
 
     // Convert relative logo URLs to absolute URLs
     let attachments: any[] | undefined;
+    const baseUrl = Env.WEBSITE_URL || 'https://nuvisa.co.uk';
+    
     if (footerContent?.logo && footerContent.logo.trim() !== '') {
       if (!footerContent.logo.startsWith('http')) {
-        const baseUrl = Env.WEBSITE_URL || 'https://nuvisa.co.uk';
         const cleanPath = footerContent.logo.startsWith('/') ? footerContent.logo : `/${footerContent.logo}`;
         footerContent.logo = `${baseUrl}${cleanPath}`;
       }
@@ -32,7 +33,24 @@ export async function sendEmail(emailMeta, footerContent?: any) {
       ];
     }
 
-    const emailTemplate = getEmailTemplateHeaderFooter(body, footerContent);
+    // Handle decorative image - embed as attachment if not excluded
+    if (!excludeDecorativeImage) {
+      const decorativeImageUrl = `${baseUrl}/image/email-decorative.png`;
+      const decorativeImageCid = 'email-decorative-image';
+      footerContent.decorativeImage_cid = decorativeImageCid;
+      
+      if (!attachments) {
+        attachments = [];
+      }
+      
+      attachments.push({
+        filename: 'email-decorative.png',
+        path: decorativeImageUrl,
+        cid: decorativeImageCid,
+      });
+    }
+
+    const emailTemplate = getEmailTemplateHeaderFooter(body, footerContent, excludeDecorativeImage);
 
     const mailOptions: any = {
       from: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk",
@@ -54,7 +72,7 @@ export async function sendEmail(emailMeta, footerContent?: any) {
   }
 }
 
-const getEmailTemplateHeaderFooter = (emailContent, footerContent?: any) => {
+const getEmailTemplateHeaderFooter = (emailContent, footerContent?: any, excludeDecorativeImage: boolean = false) => {
   // Get logo URL
   const logoUrl = footerContent?.logo || '';
   const logoSrc = footerContent?.logo_cid ? `cid:${footerContent.logo_cid}` : logoUrl;
@@ -76,6 +94,21 @@ const getEmailTemplateHeaderFooter = (emailContent, footerContent?: any) => {
   const companyInfo = footerContent?.companyInfo || [
     'If you would like to find out more about NUvisa, please reach out to us via support@nuvisa.co.uk'
   ];
+
+  // Decorative image - use CID if available (embedded attachment), otherwise use URL
+  const decorativeImageSrc = footerContent?.decorativeImage_cid 
+    ? `cid:${footerContent.decorativeImage_cid}` 
+    : (excludeDecorativeImage ? '' : `${Env.WEBSITE_URL || 'https://nuvisa.co.uk'}/image/email-decorative.png`);
+  
+  // Decorative image HTML - only include if not excluded
+  const decorativeImageHTML = excludeDecorativeImage || !decorativeImageSrc ? '' : `
+          <!-- Decorative Image -->
+          <tr>
+            <td style="padding: 30px 40px; text-align: center;">
+              <img src="${decorativeImageSrc}" alt="Travel Planning" style="max-width: 100%; height: auto; margin: 0 auto; display: block; border-radius: 8px;">
+            </td>
+          </tr>
+  `;
 
   return `
 <!DOCTYPE html>
@@ -109,7 +142,7 @@ const getEmailTemplateHeaderFooter = (emailContent, footerContent?: any) => {
       ${emailContent}
             </td>
           </tr>
-          
+          ${decorativeImageHTML}
           <!-- Team Signature -->
           <tr>
             <td style="padding: 0 40px 20px 40px; text-align: left; border-top: 1px solid #e5e5e5;">
