@@ -26,8 +26,7 @@ export class StripeService {
 
       let { email, amount, successUrl, cancelUrl, paymentType } = checkoutData;
 
-
-      const currency = (checkoutData.currency || "INR")
+      const currency = (checkoutData.currency || "EUR")
         .toString()
         .toLowerCase();
 
@@ -53,13 +52,13 @@ export class StripeService {
         };
       }
 
-      console.log(successUrl, "TEMPPPP=====>")
-
       const validSuccessUrl = successUrl.replace(/&amp;/g, "&");
       const validCancelUrl = cancelUrl.replace(/&amp;/g, "&");
-      console.log(validSuccessUrl, "ENCODED TEMPPPP=====>")
 
-      const session = await stripe.checkout.sessions.create({
+      // Check if embedded mode is requested
+      const isEmbedded = checkoutData.uiMode === "embedded";
+
+      const sessionConfig: any = {
         payment_method_types: ["card"],
         ...customerEmail,
         line_items: [
@@ -79,14 +78,32 @@ export class StripeService {
           },
         ],
         mode: "payment",
-        success_url: `${Env.WEBSITE_URL}${validSuccessUrl}`,
-        cancel_url: `${Env.WEBSITE_URL}${validCancelUrl}`,
         metadata: {
           ...checkoutData,
         },
-      });
+      };
 
-      return { url: session.url, ...authResponse };
+      // Configure for embedded or hosted checkout
+      if (isEmbedded) {
+        sessionConfig.ui_mode = "embedded";
+        sessionConfig.return_url = `${Env.WEBSITE_URL}${validSuccessUrl}`;
+      } else {
+        sessionConfig.success_url = `${Env.WEBSITE_URL}${validSuccessUrl}`;
+        sessionConfig.cancel_url = `${Env.WEBSITE_URL}${validCancelUrl}`;
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionConfig);
+
+      // Return appropriate response based on mode
+      if (isEmbedded) {
+        return { 
+          clientSecret: session.client_secret, 
+          sessionId: session.id,
+          ...authResponse 
+        };
+      } else {
+        return { url: session.url, ...authResponse };
+      }
     } catch (err) {
       callHTTPException(
         `Something went wrong while generating sessionId: ${err.message}`
@@ -285,7 +302,7 @@ export class StripeService {
           insurance: data.metadata.insurance,
           numberOfTravellers: data.metadata.travellers,
           amountPaid: data.metadata.amount,
-          country: data.metadata.country,
+          country: data.metadata.country || null, // Country is optional - may be collected by Stripe
           visaTypeId: data.metadata.visaTypeId,
         });
       }
