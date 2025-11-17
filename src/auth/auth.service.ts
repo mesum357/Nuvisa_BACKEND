@@ -80,6 +80,22 @@ export class AuthService {
         }
       }
 
+      // For checkout flow with sessionUser, skip OTP and directly generate token
+      if (sessionUser && type === "checkout") {
+        // Clear any existing OTP for checkout flow
+        user.otp = null;
+        user.otp_expiry = null;
+        await user.save();
+        
+        // Generate JWT token directly without OTP verification
+        const token = await this.jwtAuthService.generateToken(user.dataValues);
+        return {
+          message: "Session created successfully",
+          token,
+          user,
+        };
+      }
+
       // Generate OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
 

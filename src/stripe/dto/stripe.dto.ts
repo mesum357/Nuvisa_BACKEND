@@ -28,9 +28,9 @@ export class checkoutSessionDto {
   @IsNotEmpty()
   amount: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  country: string;
+  country?: string;
 
   @IsString()
   insurance: string;
@@ -56,4 +56,8 @@ export class checkoutSessionDto {
   @IsOptional()
   @IsString()
   currency?: string;
+
+  @IsOptional()
+  @IsString()
+  uiMode?: string; // 'hosted' or 'embedded'
 }
