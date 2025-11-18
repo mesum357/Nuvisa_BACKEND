@@ -610,4 +610,42 @@ export class AdminController {
       callHTTPException(error.message);
     }
   }
+
+  /**
+   * GET /orders/email-footer-settings
+   * Get email footer settings
+   */
+  @Get('email-footer-settings')
+  async getEmailFooterSettings() {
+    try {
+      const data = await this.adminService.getEmailFooterSettings();
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Email footer settings fetched successfully'
+      );
+    } catch (error) {
+      console.error('Error in getEmailFooterSettings:', error);
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
+   * PATCH /orders/email-footer-settings
+   * Update email footer settings
+   */
+  @Patch('email-footer-settings')
+  async updateEmailFooterSettings(@Body() body: any) {
+    try {
+      const data = await this.adminService.updateEmailFooterSettings(body);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Email footer settings updated successfully'
+      );
+    } catch (error) {
+      console.error('Error in updateEmailFooterSettings:', error);
+      callHTTPException(error.message);
+    }
+  }
 }

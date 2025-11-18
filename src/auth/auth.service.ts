@@ -317,6 +317,8 @@ export class AuthService {
       let facebook = '#';
       let instagram = '#';
       let linkedin = '#';
+      let teamSignature = '— Team NUvisa';
+      let companyInfo: string[] = [];
       
       try {
         // Try to get from backend database first
@@ -336,12 +338,35 @@ export class AuthService {
         `) as any[];
         
         socialLinks.forEach((link: any) => {
-          const key = link.key.replace('social_', '');
-          if (key === 'twitter') twitter = link.value || '#';
-          if (key === 'facebook') facebook = link.value || '#';
-          if (key === 'instagram') instagram = link.value || '#';
-          if (key === 'linkedin') linkedin = link.value || '#';
+          const row = Array.isArray(link) ? link[0] : link;
+          const key = row?.key?.replace('social_', '') || '';
+          const value = row?.value || '';
+          if (key === 'twitter') twitter = value || '#';
+          if (key === 'facebook') facebook = value || '#';
+          if (key === 'instagram') instagram = value || '#';
+          if (key === 'linkedin') linkedin = value || '#';
         });
+
+        // Get team signature and company info
+        const teamSignatureResult = await this.sequelize.query(`
+          SELECT value FROM site_content WHERE key = 'email_team_signature' LIMIT 1
+        `) as any[];
+        teamSignature = teamSignatureResult?.[0]?.[0]?.value || '— Team NUvisa';
+
+        const companyInfoResult = await this.sequelize.query(`
+          SELECT value FROM site_content WHERE key = 'email_company_info' LIMIT 1
+        `) as any[];
+        try {
+          const companyInfoValue = companyInfoResult?.[0]?.[0]?.value;
+          if (companyInfoValue) {
+            companyInfo = JSON.parse(companyInfoValue);
+          }
+        } catch {
+          const companyInfoValue = companyInfoResult?.[0]?.[0]?.value;
+          if (companyInfoValue) {
+            companyInfo = [companyInfoValue];
+          }
+        }
       } catch (queryError) {
         // site_content table might not exist in backend database
         logoUrl = '';
@@ -352,15 +377,24 @@ export class AuthService {
         logoUrl = '/image/logo.png';
       }
 
+      const baseUrl = Env.WEBSITE_URL || 'https://nuvisa.co.uk';
+      const helpCentreUrl = `${baseUrl}/get-the-visa#faq`;
+      
+      // Use company info from database or fallback
+      if (companyInfo.length === 0) {
+        companyInfo = [
+          `If you have any questions, please visit our <a href="${helpCentreUrl}" style="color: #000000; text-decoration: underline;">Help Centre</a>.`
+        ];
+      }
+      
       const footerContent = {
         logo: logoUrl,
         twitter,
         facebook,
         instagram,
         linkedin,
-        companyInfo: [
-          'If you would like to find out more about NUvisa, please reach out to us via support@nuvisa.co.uk. NUvisa Ltd (No. 08804411) is an independent visa assistance company.'
-        ]
+        teamSignature: teamSignature || '— Team NUvisa',
+        companyInfo
       };
 
       return footerContent;

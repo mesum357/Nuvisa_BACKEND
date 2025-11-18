@@ -1379,6 +1379,178 @@ export class AdminService {
   }
 
   /**
+   * Get email footer settings
+   */
+  async getEmailFooterSettings(): Promise<any> {
+    try {
+      const settings: any = {
+        logoUrl: '/image/logo.png',
+        teamSignature: '— Team NUvisa',
+        companyInfo: ['If you have any questions, please visit our Help Centre.'],
+        twitter: '#',
+        facebook: '#',
+        instagram: '#',
+        linkedin: '#',
+      };
+
+      try {
+        const results = await this.sequelize.query(`
+          SELECT key, value FROM site_content 
+          WHERE key IN (
+            'email_logo_url', 
+            'email_team_signature', 
+            'email_company_info',
+            'social_twitter', 
+            'social_facebook', 
+            'social_instagram', 
+            'social_linkedin'
+          )
+        `) as any[];
+
+        // Handle different query result formats
+        // Sequelize query can return [rows, metadata] or just rows
+        let rows: any[] = [];
+        if (Array.isArray(results) && results.length > 0) {
+          // Check if it's [rows, metadata] format
+          if (Array.isArray(results[0]) && results[0].length > 0 && typeof results[0][0] === 'object') {
+            rows = results[0];
+          } else if (typeof results[0] === 'object' && results[0].key) {
+            // Direct array of objects
+            rows = results;
+          } else if (Array.isArray(results[0])) {
+            // Nested array format
+            rows = results[0];
+          }
+        }
+        
+        rows.forEach((row: any) => {
+          let key: string | null = null;
+          let value: string | null = null;
+          
+          // Handle different row formats
+          if (row && typeof row === 'object') {
+            if (row.key) {
+              key = row.key;
+              value = row.value;
+            } else if (Array.isArray(row) && row.length >= 2) {
+              key = row[0];
+              value = row[1];
+            } else {
+              // Try to get first two properties
+              const entries = Object.entries(row);
+              if (entries.length >= 2) {
+                key = entries[0][1] as string;
+                value = entries[1][1] as string;
+              }
+            }
+          }
+          
+          if (!key || !value) return;
+          
+          if (key === 'email_logo_url') settings.logoUrl = value || settings.logoUrl;
+          if (key === 'email_team_signature') settings.teamSignature = value || settings.teamSignature;
+          if (key === 'email_company_info') {
+            try {
+              const parsed = JSON.parse(value);
+              if (Array.isArray(parsed)) {
+                settings.companyInfo = parsed;
+              } else {
+                settings.companyInfo = [parsed];
+              }
+            } catch {
+              settings.companyInfo = value ? [value] : settings.companyInfo;
+            }
+          }
+          if (key === 'social_twitter') settings.twitter = value || settings.twitter;
+          if (key === 'social_facebook') settings.facebook = value || settings.facebook;
+          if (key === 'social_instagram') settings.instagram = value || settings.instagram;
+          if (key === 'social_linkedin') settings.linkedin = value || settings.linkedin;
+        });
+      } catch (queryError) {
+        // site_content table might not exist
+      }
+
+      return settings;
+    } catch (error) {
+      throw new Error('Failed to fetch email footer settings');
+    }
+  }
+
+  /**
+   * Update email footer settings
+   */
+  async updateEmailFooterSettings(data: {
+    logoUrl?: string;
+    teamSignature?: string;
+    companyInfo?: string[];
+    twitter?: string;
+    facebook?: string;
+    instagram?: string;
+    linkedin?: string;
+  }): Promise<any> {
+    try {
+      const updates: Array<{ key: string; value: string }> = [];
+
+      if (data.logoUrl !== undefined) {
+        updates.push({ key: 'email_logo_url', value: data.logoUrl });
+      }
+      if (data.teamSignature !== undefined) {
+        updates.push({ key: 'email_team_signature', value: data.teamSignature });
+      }
+      if (data.companyInfo !== undefined) {
+        updates.push({ key: 'email_company_info', value: JSON.stringify(data.companyInfo) });
+      }
+      if (data.twitter !== undefined) {
+        updates.push({ key: 'social_twitter', value: data.twitter });
+      }
+      if (data.facebook !== undefined) {
+        updates.push({ key: 'social_facebook', value: data.facebook });
+      }
+      if (data.instagram !== undefined) {
+        updates.push({ key: 'social_instagram', value: data.instagram });
+      }
+      if (data.linkedin !== undefined) {
+        updates.push({ key: 'social_linkedin', value: data.linkedin });
+      }
+
+      for (const update of updates) {
+        // Check if record exists
+        const existing = await this.sequelize.query(`
+          SELECT id FROM site_content WHERE key = :key LIMIT 1
+        `, {
+          replacements: { key: update.key },
+          type: QueryTypes.SELECT,
+        }) as any[];
+
+        if (existing && existing.length > 0) {
+          // Update existing record
+          await this.sequelize.query(`
+            UPDATE site_content 
+            SET value = :value, updated_at = NOW() 
+            WHERE key = :key
+          `, {
+            replacements: { key: update.key, value: update.value },
+            type: QueryTypes.UPDATE,
+          });
+        } else {
+          // Insert new record
+          await this.sequelize.query(`
+            INSERT INTO site_content (key, value, type, created_at, updated_at)
+            VALUES (:key, :value, 'text', NOW(), NOW())
+          `, {
+            replacements: { key: update.key, value: update.value },
+            type: QueryTypes.INSERT,
+          });
+        }
+      }
+
+      return { success: true, message: 'Email footer settings updated successfully' };
+    } catch (error) {
+      throw new Error('Failed to update email footer settings');
+    }
+  }
+
+  /**
    * Get email footer content (logo, social links, etc.)
    */
   private async getEmailFooterContent(): Promise<any> {
@@ -1389,6 +1561,8 @@ export class AdminService {
       let facebook = '#';
       let instagram = '#';
       let linkedin = '#';
+      let teamSignature = '— Team NUvisa';
+      let companyInfo: string[] = [];
       
       try {
         // Try to get from backend database first
@@ -1408,12 +1582,35 @@ export class AdminService {
         `) as any[];
         
         socialLinks.forEach((link: any) => {
-          const key = link.key.replace('social_', '');
-          if (key === 'twitter') twitter = link.value || '#';
-          if (key === 'facebook') facebook = link.value || '#';
-          if (key === 'instagram') instagram = link.value || '#';
-          if (key === 'linkedin') linkedin = link.value || '#';
+          const row = Array.isArray(link) ? link[0] : link;
+          const key = row?.key?.replace('social_', '') || '';
+          const value = row?.value || '';
+          if (key === 'twitter') twitter = value || '#';
+          if (key === 'facebook') facebook = value || '#';
+          if (key === 'instagram') instagram = value || '#';
+          if (key === 'linkedin') linkedin = value || '#';
         });
+
+        // Get team signature and company info
+        const teamSignatureResult = await this.sequelize.query(`
+          SELECT value FROM site_content WHERE key = 'email_team_signature' LIMIT 1
+        `) as any[];
+        teamSignature = teamSignatureResult?.[0]?.[0]?.value || '— Team NUvisa';
+
+        const companyInfoResult = await this.sequelize.query(`
+          SELECT value FROM site_content WHERE key = 'email_company_info' LIMIT 1
+        `) as any[];
+        try {
+          const companyInfoValue = companyInfoResult?.[0]?.[0]?.value;
+          if (companyInfoValue) {
+            companyInfo = JSON.parse(companyInfoValue);
+          }
+        } catch {
+          const companyInfoValue = companyInfoResult?.[0]?.[0]?.value;
+          if (companyInfoValue) {
+            companyInfo = [companyInfoValue];
+          }
+        }
       } catch (queryError) {
         // site_content table might not exist in backend database
         logoUrl = '';
@@ -1427,15 +1624,21 @@ export class AdminService {
       const baseUrl = Env.WEBSITE_URL || 'https://nuvisa.co.uk';
       const helpCentreUrl = `${baseUrl}/get-the-visa#faq`;
       
+      // Use company info from database or fallback
+      if (companyInfo.length === 0) {
+        companyInfo = [
+          `If you have any questions, please visit our <a href="${helpCentreUrl}" style="color: #000000; text-decoration: underline;">Help Centre</a>.`
+        ];
+      }
+      
       const footerContent = {
         logo: logoUrl,
         twitter,
         facebook,
         instagram,
         linkedin,
-        companyInfo: [
-          `If you have any questions, please visit our <a href="${helpCentreUrl}" style="color: #000000; text-decoration: underline;">Help Centre</a>.`
-        ]
+        teamSignature: teamSignature || '— Team NUvisa',
+        companyInfo
       };
 
       return footerContent;
