@@ -147,7 +147,7 @@ const getEmailTemplateHeaderFooter = (emailContent, footerContent?: any, exclude
           <tr>
             <td style="padding: 0 40px 20px 40px; text-align: left; border-top: 1px solid #e5e5e5;">
               <p style="margin: 30px 0 20px 0; font-size: 14px; line-height: 20px; color: #000000;">
-                — Team NUvisa
+                ${footerContent?.teamSignature || '— Team NUvisa'}
               </p>
             </td>
           </tr>
