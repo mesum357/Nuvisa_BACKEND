@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/sequelize';
 import { VisaApplication } from '../applicationSteps/visa-application.entity';
 import { User } from '../auth/auth.entity';
 import { EmailTemplate } from '../email-templates/email-template.entity';
+import { EmailLog } from '../email-logs/email-log.entity';
 import { Op, QueryTypes, where, col, cast, fn, col as sqCol, literal } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import {
@@ -12,7 +13,7 @@ import {
   ApplicationStatus,
   SearchType
 } from './dto';
-import { sendEmail, renderTemplate, renderTemplateFromDB } from '../shared/services/sendEmail.service';
+import { sendEmail, renderTemplate, renderTemplateFromDB, getEmailTemplateHeaderFooter } from '../shared/services/sendEmail.service';
 import { Env } from '../shared/config';
 
 @Injectable()
@@ -24,6 +25,8 @@ export class AdminService {
     private userModel: typeof User,
     @InjectModel(EmailTemplate)
     private emailTemplateModel: typeof EmailTemplate,
+    @InjectModel(EmailLog)
+    private emailLogModel: typeof EmailLog,
     private sequelize: Sequelize
   ) {}
 
@@ -439,6 +442,101 @@ export class AdminService {
   }
 
   /**
+   * Send email and log it to database
+   */
+  async sendEmailAndLog(emailData: {
+    emailAddress: string;
+    subject: string;
+    body: string;
+    excludeDecorativeImage?: boolean;
+    templateKey?: string;
+    templateName?: string;
+    templateVariables?: any;
+    applicationId?: string;
+    userId?: string;
+    recipientName?: string;
+  }, footerContent?: any): Promise<any> {
+    let messageId: string | null = null;
+    let status = 'sent';
+    let errorMessage: string | null = null;
+    let htmlContent = '';
+
+    try {
+      // Get footer content if not provided
+      if (!footerContent) {
+        footerContent = await this.getEmailFooterContent();
+      }
+
+      // Send the email
+      const result = await sendEmail(emailData, footerContent);
+      messageId = result?.messageId || null;
+      
+      // Get the HTML content that was sent
+      htmlContent = getEmailTemplateHeaderFooter(
+        emailData.body,
+        footerContent,
+        emailData.excludeDecorativeImage || false
+      );
+
+      // Log successful email
+      await this.emailLogModel.create({
+        recipientEmail: emailData.emailAddress,
+        recipientName: emailData.recipientName || null,
+        subject: emailData.subject,
+        body: emailData.body,
+        htmlContent: htmlContent,
+        templateKey: emailData.templateKey || null,
+        templateName: emailData.templateName || null,
+        templateVariables: emailData.templateVariables || null,
+        applicationId: emailData.applicationId || null,
+        userId: emailData.userId || null,
+        status: 'sent',
+        messageId: messageId,
+      });
+
+      return result;
+    } catch (error: any) {
+      status = 'failed';
+      errorMessage = error.message || 'Unknown error';
+      
+      // Get HTML content even for failed emails
+      try {
+        if (!footerContent) {
+          footerContent = await this.getEmailFooterContent();
+        }
+        htmlContent = getEmailTemplateHeaderFooter(
+          emailData.body,
+          footerContent,
+          emailData.excludeDecorativeImage || false
+        );
+      } catch {}
+
+      // Log failed email
+      try {
+        await this.emailLogModel.create({
+          recipientEmail: emailData.emailAddress,
+          recipientName: emailData.recipientName || null,
+          subject: emailData.subject,
+          body: emailData.body,
+          htmlContent: htmlContent,
+          templateKey: emailData.templateKey || null,
+          templateName: emailData.templateName || null,
+          templateVariables: emailData.templateVariables || null,
+          applicationId: emailData.applicationId || null,
+          userId: emailData.userId || null,
+          status: 'failed',
+          errorMessage: errorMessage,
+        });
+      } catch (logError) {
+        // Don't fail if logging fails
+        console.error('Failed to save email log:', logError);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
    * Update application status
    */
   async updateApplicationStatus(updateDto: UpdateApplicationStatusDto): Promise<any> {
@@ -519,18 +617,29 @@ export class AdminService {
             
             const footerContent = await this.getEmailFooterContent();
             
-            await sendEmail(
+            await this.sendEmailAndLog(
               {
                 emailAddress: application.email,
                 subject: emailSubject,
                 body: emailBody,
+                templateKey: 'status_update',
+                templateName: template.name,
+                templateVariables: {
+                  userName: userName,
+                  status: updateDto.status.toUpperCase(),
+                  oldStatus: oldStatus || 'Unknown',
+                  message: message,
+                  notes: updateDto.notes || '',
+                },
+                applicationId: application.id,
+                recipientName: userName,
               },
               footerContent
             );
           } else {
             // Fallback to hardcoded template
             const footerContent = await this.getEmailFooterContent();
-            await sendEmail(
+            await this.sendEmailAndLog(
               {
                 emailAddress: application.email,
                 subject: `Visa Application Status Update - ${updateDto.status.toUpperCase()}`,
@@ -541,7 +650,9 @@ export class AdminService {
                   <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
                   <p><strong>Message:</strong> ${message}</p>
                   ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
-                `
+                `,
+                templateKey: 'status_update',
+                applicationId: application.id,
               },
               footerContent
             );
@@ -549,7 +660,7 @@ export class AdminService {
         } catch (templateError) {
           // Fallback to hardcoded email
           const footerContent = await this.getEmailFooterContent();
-          await sendEmail(
+          await this.sendEmailAndLog(
             {
               emailAddress: application.email,
               subject: `Visa Application Status Update - ${updateDto.status.toUpperCase()}`,
@@ -560,7 +671,9 @@ export class AdminService {
                 <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
                 <p><strong>Message:</strong> ${message}</p>
                 ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
-              `
+              `,
+              templateKey: 'status_update',
+              applicationId: application.id,
             },
             footerContent
           );
@@ -1377,6 +1490,93 @@ export class AdminService {
   }
 
   /**
+   * Sync email templates with backend definitions
+   * This will create missing templates and optionally update existing ones
+   */
+  async syncEmailTemplates(updateExisting: boolean = false): Promise<any> {
+    try {
+      const templatesToSync = [
+        {
+          key: 'otp_email',
+          name: 'OTP Email',
+          subject: 'Your OTP Code',
+          body: '<p>Hi,</p><p>Your One-Time Password (OTP) code is:</p><p style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #000000; background: #f5f5f5; padding: 20px; display: inline-block; border-radius: 8px; margin: 20px 0;">${otp}</p><p>This code will expire in <strong>10 minutes</strong>.</p><p>If you did not request this code, please ignore this email.</p>',
+          description: 'Email template for OTP verification',
+          isActive: true,
+        },
+        {
+          key: 'status_update',
+          name: 'Application Status Update',
+          subject: 'Visa Application Status Update - ${status}',
+          body: '<p>Hi ${userName},</p><p>Your visa application status has been updated:</p><p><strong>Previous Status:</strong> ${oldStatus || "Unknown"}</p><p><strong>New Status:</strong> ${status}</p><p><strong>Message:</strong> ${message}</p>${notes ? `<p><strong>Additional Notes:</strong> ${notes}</p>` : ""}',
+          description: 'Email template for application status updates',
+          isActive: true,
+        },
+        {
+          key: 'application_submitted',
+          name: 'Application Submitted',
+          subject: 'Visa Application Submitted Successfully',
+          body: '<p>Hi ${userName},</p><p>Your visa application has been submitted successfully.</p><p><strong>Application Number:</strong> ${applicationNo}</p><p>We will review your application and update you on the status.</p>',
+          description: 'Email template for successful application submission',
+          isActive: true,
+        },
+        {
+          key: 'application_approved',
+          name: 'Application Approved',
+          subject: 'Congratulations! Your Visa Application Has Been Approved',
+          body: '<p>Hi ${userName},</p><p>Congratulations! Your visa application has been approved.</p><p><strong>Application Number:</strong> ${applicationNo}</p><p>Please check your account for further instructions.</p>',
+          description: 'Email template for approved applications',
+          isActive: true,
+        },
+        {
+          key: 'application_rejected',
+          name: 'Application Rejected',
+          subject: 'Visa Application Update',
+          body: '<p>Hi ${userName},</p><p>Your visa application status has been updated.</p><p><strong>Application Number:</strong> ${applicationNo}</p><p><strong>Status:</strong> ${status}</p>${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ""}<p>Please contact us if you have any questions.</p>',
+          description: 'Email template for rejected applications',
+          isActive: true,
+        },
+      ];
+
+      const existingTemplates = await this.emailTemplateModel.findAll();
+      const existingKeys = new Map(existingTemplates.map(t => [t.get('key') as string, t]));
+
+      let created = 0;
+      let updated = 0;
+
+      for (const templateDef of templatesToSync) {
+        const existing = existingKeys.get(templateDef.key);
+        
+        if (!existing) {
+          // Create missing template
+          await this.emailTemplateModel.create(templateDef);
+          created++;
+        } else if (updateExisting) {
+          // Update existing template if updateExisting is true
+          await existing.update({
+            name: templateDef.name,
+            subject: templateDef.subject,
+            body: templateDef.body,
+            description: templateDef.description,
+            isActive: templateDef.isActive,
+          });
+          updated++;
+        }
+      }
+
+      return {
+        success: true,
+        message: `Email templates synced successfully. Created: ${created}, Updated: ${updated}`,
+        created,
+        updated,
+      };
+    } catch (error) {
+      console.error('Error syncing email templates:', error);
+      throw new Error('Failed to sync email templates');
+    }
+  }
+
+  /**
    * Get email footer settings
    */
   async getEmailFooterSettings(): Promise<any> {
@@ -1403,69 +1603,44 @@ export class AdminService {
             'social_instagram', 
             'social_linkedin'
           )
-        `) as any[];
+        `, {
+          type: QueryTypes.SELECT,
+        }) as Array<{ key: string; value: string }>;
 
-        // Handle different query result formats
-        // Sequelize query can return [rows, metadata] or just rows
-        let rows: any[] = [];
+        // Process results - QueryTypes.SELECT returns array of objects directly
         if (Array.isArray(results) && results.length > 0) {
-          // Check if it's [rows, metadata] format
-          if (Array.isArray(results[0]) && results[0].length > 0 && typeof results[0][0] === 'object') {
-            rows = results[0];
-          } else if (typeof results[0] === 'object' && results[0].key) {
-            // Direct array of objects
-            rows = results;
-          } else if (Array.isArray(results[0])) {
-            // Nested array format
-            rows = results[0];
-          }
+          console.log(`Fetched ${results.length} footer settings from database`);
+          results.forEach((row) => {
+            if (!row || !row.key || row.value === null || row.value === undefined) return;
+            
+            const key = row.key;
+            const value = row.value;
+            
+            if (key === 'email_logo_url') settings.logoUrl = value || settings.logoUrl;
+            if (key === 'email_team_signature') settings.teamSignature = value || settings.teamSignature;
+            if (key === 'email_company_info') {
+              try {
+                const parsed = JSON.parse(value);
+                if (Array.isArray(parsed)) {
+                  settings.companyInfo = parsed;
+                } else {
+                  settings.companyInfo = [parsed];
+                }
+              } catch {
+                settings.companyInfo = value ? [value] : settings.companyInfo;
+              }
+            }
+            if (key === 'social_twitter') settings.twitter = value || settings.twitter;
+            if (key === 'social_facebook') settings.facebook = value || settings.facebook;
+            if (key === 'social_instagram') settings.instagram = value || settings.instagram;
+            if (key === 'social_linkedin') settings.linkedin = value || settings.linkedin;
+          });
+        } else {
+          console.log('No footer settings found in database, using defaults');
         }
-        
-        rows.forEach((row: any) => {
-          let key: string | null = null;
-          let value: string | null = null;
-          
-          // Handle different row formats
-          if (row && typeof row === 'object') {
-            if (row.key) {
-              key = row.key;
-              value = row.value;
-            } else if (Array.isArray(row) && row.length >= 2) {
-              key = row[0];
-              value = row[1];
-            } else {
-              // Try to get first two properties
-              const entries = Object.entries(row);
-              if (entries.length >= 2) {
-                key = entries[0][1] as string;
-                value = entries[1][1] as string;
-              }
-            }
-          }
-          
-          if (!key || !value) return;
-          
-          if (key === 'email_logo_url') settings.logoUrl = value || settings.logoUrl;
-          if (key === 'email_team_signature') settings.teamSignature = value || settings.teamSignature;
-          if (key === 'email_company_info') {
-            try {
-              const parsed = JSON.parse(value);
-              if (Array.isArray(parsed)) {
-                settings.companyInfo = parsed;
-              } else {
-                settings.companyInfo = [parsed];
-              }
-            } catch {
-              settings.companyInfo = value ? [value] : settings.companyInfo;
-            }
-          }
-          if (key === 'social_twitter') settings.twitter = value || settings.twitter;
-          if (key === 'social_facebook') settings.facebook = value || settings.facebook;
-          if (key === 'social_instagram') settings.instagram = value || settings.instagram;
-          if (key === 'social_linkedin') settings.linkedin = value || settings.linkedin;
-        });
-      } catch (queryError) {
-        // site_content table might not exist
+      } catch (queryError: any) {
+        console.error('Error fetching footer settings from database:', queryError?.message);
+        // site_content table might not exist - use defaults
       }
 
       return settings;
@@ -1486,65 +1661,150 @@ export class AdminService {
     instagram?: string;
     linkedin?: string;
   }): Promise<any> {
+    const updates: Array<{ key: string; value: string }> = [];
+    
     try {
-      const updates: Array<{ key: string; value: string }> = [];
 
       if (data.logoUrl !== undefined) {
-        updates.push({ key: 'email_logo_url', value: data.logoUrl });
+        updates.push({ key: 'email_logo_url', value: String(data.logoUrl || '') });
       }
       if (data.teamSignature !== undefined) {
-        updates.push({ key: 'email_team_signature', value: data.teamSignature });
+        updates.push({ key: 'email_team_signature', value: String(data.teamSignature || '') });
       }
       if (data.companyInfo !== undefined) {
-        updates.push({ key: 'email_company_info', value: JSON.stringify(data.companyInfo) });
+        const companyInfoValue = Array.isArray(data.companyInfo) 
+          ? JSON.stringify(data.companyInfo) 
+          : JSON.stringify([String(data.companyInfo || '')]);
+        updates.push({ key: 'email_company_info', value: companyInfoValue });
       }
       if (data.twitter !== undefined) {
-        updates.push({ key: 'social_twitter', value: data.twitter });
+        updates.push({ key: 'social_twitter', value: String(data.twitter || '#') });
       }
       if (data.facebook !== undefined) {
-        updates.push({ key: 'social_facebook', value: data.facebook });
+        updates.push({ key: 'social_facebook', value: String(data.facebook || '#') });
       }
       if (data.instagram !== undefined) {
-        updates.push({ key: 'social_instagram', value: data.instagram });
+        updates.push({ key: 'social_instagram', value: String(data.instagram || '#') });
       }
       if (data.linkedin !== undefined) {
-        updates.push({ key: 'social_linkedin', value: data.linkedin });
+        updates.push({ key: 'social_linkedin', value: String(data.linkedin || '#') });
       }
 
+      // Ensure we have updates to process
+      if (updates.length === 0) {
+        return { success: true, message: 'No updates to process' };
+      }
+
+      // Use a transaction to ensure all updates succeed or fail together
+      await this.sequelize.transaction(async (transaction) => {
+        for (const update of updates) {
+          try {
+            // Use PostgreSQL's INSERT ... ON CONFLICT (UPSERT) for reliable updates
+            // This ensures the record is either inserted or updated atomically
+            await this.sequelize.query(`
+              INSERT INTO site_content (key, value, type, created_at, updated_at)
+              VALUES (:key, :value, 'text', NOW(), NOW())
+              ON CONFLICT (key) 
+              DO UPDATE SET 
+                value = EXCLUDED.value,
+                updated_at = NOW()
+            `, {
+              replacements: { key: update.key, value: update.value },
+              type: QueryTypes.INSERT,
+              transaction,
+            });
+
+            // Verify the update/insert was successful within the transaction
+            const verify = await this.sequelize.query(`
+              SELECT value FROM site_content WHERE key = :key LIMIT 1
+            `, {
+              replacements: { key: update.key },
+              type: QueryTypes.SELECT,
+              transaction,
+            }) as Array<{ value: string }>;
+            
+            if (verify && verify.length > 0) {
+              console.log(`✓ ${update.key} saved in transaction: ${verify[0].value.substring(0, 50)}...`);
+            } else {
+              console.warn(`⚠ Warning: Could not verify ${update.key} was saved in transaction`);
+            }
+          } catch (upsertError: any) {
+            // If UPSERT fails (e.g., no unique constraint), fall back to SELECT then UPDATE/INSERT
+            if (upsertError.message?.includes('ON CONFLICT') || upsertError.message?.includes('conflict') || upsertError.message?.includes('unique constraint')) {
+              console.log(`Falling back to SELECT/UPDATE for ${update.key}`);
+              
+              // Check if record exists
+              const existing = await this.sequelize.query(`
+                SELECT id FROM site_content WHERE key = :key LIMIT 1
+              `, {
+                replacements: { key: update.key },
+                type: QueryTypes.SELECT,
+                transaction,
+              }) as Array<{ id: string }>;
+
+              if (existing && existing.length > 0) {
+                // Update existing record
+                await this.sequelize.query(`
+                  UPDATE site_content 
+                  SET value = :value, updated_at = NOW() 
+                  WHERE key = :key
+                `, {
+                  replacements: { key: update.key, value: update.value },
+                  type: QueryTypes.UPDATE,
+                  transaction,
+                });
+                console.log(`✓ Updated ${update.key}`);
+              } else {
+                // Insert new record
+                await this.sequelize.query(`
+                  INSERT INTO site_content (key, value, type, created_at, updated_at)
+                  VALUES (:key, :value, 'text', NOW(), NOW())
+                `, {
+                  replacements: { key: update.key, value: update.value },
+                  type: QueryTypes.INSERT,
+                  transaction,
+                });
+                console.log(`✓ Inserted ${update.key}`);
+              }
+            } else {
+              throw upsertError;
+            }
+          }
+        }
+      });
+
+      // Verify data was persisted after transaction commits
+      console.log('Verifying data persistence after transaction commit...');
       for (const update of updates) {
-        // Check if record exists
-        const existing = await this.sequelize.query(`
-          SELECT id FROM site_content WHERE key = :key LIMIT 1
+        const postCommitVerify = await this.sequelize.query(`
+          SELECT value FROM site_content WHERE key = :key LIMIT 1
         `, {
           replacements: { key: update.key },
           type: QueryTypes.SELECT,
-        }) as any[];
-
-        if (existing && existing.length > 0) {
-          // Update existing record
-          await this.sequelize.query(`
-            UPDATE site_content 
-            SET value = :value, updated_at = NOW() 
-            WHERE key = :key
-          `, {
-            replacements: { key: update.key, value: update.value },
-            type: QueryTypes.UPDATE,
-          });
+        }) as Array<{ value: string }>;
+        
+        if (postCommitVerify && postCommitVerify.length > 0) {
+          console.log(`✓ Post-commit verification: ${update.key} = ${postCommitVerify[0].value.substring(0, 50)}...`);
         } else {
-          // Insert new record
-          await this.sequelize.query(`
-            INSERT INTO site_content (key, value, type, created_at, updated_at)
-            VALUES (:key, :value, 'text', NOW(), NOW())
-          `, {
-            replacements: { key: update.key, value: update.value },
-            type: QueryTypes.INSERT,
-          });
+          console.error(`✗ Post-commit verification FAILED: ${update.key} not found in database`);
         }
       }
 
       return { success: true, message: 'Email footer settings updated successfully' };
-    } catch (error) {
-      throw new Error('Failed to update email footer settings');
+    } catch (error: any) {
+      console.error('Error updating email footer settings:', error);
+      console.error('Error stack:', error?.stack);
+      console.error('Error name:', error?.name);
+      console.error('Error code:', error?.code);
+      console.error('Updates attempted:', updates.length > 0 ? updates : 'No updates prepared');
+      
+      // Provide more detailed error message
+      const errorMessage = error?.message || error?.toString() || 'Failed to update email footer settings';
+      const detailedMessage = error?.code 
+        ? `${errorMessage} (Error code: ${error.code})`
+        : errorMessage;
+      
+      throw new Error(detailedMessage);
     }
   }
 
@@ -1649,6 +1909,99 @@ export class AdminService {
         linkedin: '#',
         companyInfo: []
       };
+    }
+  }
+
+  /**
+   * Get all sent emails with pagination and filters
+   */
+  async getEmailLogs(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    templateKey?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    sortBy?: string;
+    sortOrder?: 'ASC' | 'DESC';
+  }): Promise<any> {
+    try {
+      const page = Number(params?.page ?? 1) || 1;
+      const limit = Number(params?.limit ?? 50) || 50;
+      const offset = (page - 1) * limit;
+      const sortBy = params?.sortBy || 'createdAt';
+      const sortOrder = params?.sortOrder || 'DESC';
+      const search = (params?.search || '').trim();
+
+      const whereConditions: any = {};
+
+      // Text search
+      if (search) {
+        whereConditions[Op.or] = [
+          { recipientEmail: { [Op.iLike]: `%${search}%` } },
+          { subject: { [Op.iLike]: `%${search}%` } },
+          { recipientName: { [Op.iLike]: `%${search}%` } },
+        ];
+      }
+
+      // Status filter
+      if (params?.status) {
+        whereConditions.status = params.status;
+      }
+
+      // Template key filter
+      if (params?.templateKey) {
+        whereConditions.templateKey = params.templateKey;
+      }
+
+      // Date range filter
+      if (params?.dateFrom || params?.dateTo) {
+        const dateFilter: any = {};
+        if (params.dateFrom) {
+          dateFilter[Op.gte] = new Date(params.dateFrom);
+        }
+        if (params.dateTo) {
+          dateFilter[Op.lte] = new Date(params.dateTo + 'T23:59:59.999Z');
+        }
+        whereConditions.createdAt = dateFilter;
+      }
+
+      const { count, rows } = await this.emailLogModel.findAndCountAll({
+        where: whereConditions,
+        order: [[sortBy, sortOrder]],
+        limit,
+        offset,
+      });
+
+      return {
+        emails: rows,
+        pagination: {
+          total: count,
+          page,
+          limit,
+          totalPages: Math.ceil(count / limit),
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching email logs:', error);
+      throw new Error('Failed to fetch email logs');
+    }
+  }
+
+  /**
+   * Get a specific email log by ID
+   */
+  async getEmailLogById(id: string): Promise<any> {
+    try {
+      const emailLog = await this.emailLogModel.findByPk(id);
+      if (!emailLog) {
+        throw new Error('Email log not found');
+      }
+      return emailLog;
+    } catch (error) {
+      console.error('Error fetching email log:', error);
+      throw new Error('Failed to fetch email log');
     }
   }
 }

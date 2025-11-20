@@ -612,6 +612,25 @@ export class AdminController {
   }
 
   /**
+   * POST /orders/email-templates/sync
+   * Sync email templates with backend definitions
+   */
+  @Post('email-templates/sync')
+  async syncEmailTemplates(@Body() body: { updateExisting?: boolean }) {
+    try {
+      const data = await this.adminService.syncEmailTemplates(body.updateExisting || false);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        data.message || 'Email templates synced successfully'
+      );
+    } catch (error) {
+      console.error('Error in syncEmailTemplates:', error);
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
    * GET /orders/email-footer-settings
    * Get email footer settings
    */
@@ -643,8 +662,71 @@ export class AdminController {
         data,
         'Email footer settings updated successfully'
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in updateEmailFooterSettings:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        body: body
+      });
+      callHTTPException(error?.message || 'Failed to update email footer settings');
+    }
+  }
+
+  /**
+   * GET /orders/email-logs
+   * Get all sent emails with pagination and filters
+   */
+  @Get('email-logs')
+  async getEmailLogs(
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+    @Query('search') search: string,
+    @Query('status') status: string,
+    @Query('templateKey') templateKey: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Query('sortBy') sortBy: string,
+    @Query('sortOrder') sortOrder: 'ASC' | 'DESC',
+  ) {
+    try {
+      const data = await this.adminService.getEmailLogs({
+        page: page ? Number(page) : undefined,
+        limit: limit ? Number(limit) : undefined,
+        search,
+        status,
+        templateKey,
+        dateFrom,
+        dateTo,
+        sortBy,
+        sortOrder,
+      });
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Email logs fetched successfully'
+      );
+    } catch (error) {
+      console.error('Error in getEmailLogs:', error);
+      callHTTPException(error.message);
+    }
+  }
+
+  /**
+   * GET /orders/email-logs/:id
+   * Get a specific email log by ID
+   */
+  @Get('email-logs/:id')
+  async getEmailLogById(@Param('id') id: string) {
+    try {
+      const data = await this.adminService.getEmailLogById(id);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Email log fetched successfully'
+      );
+    } catch (error) {
+      console.error('Error in getEmailLogById:', error);
       callHTTPException(error.message);
     }
   }

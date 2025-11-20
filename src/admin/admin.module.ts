@@ -5,12 +5,13 @@ import { AdminService } from './admin.service';
 import { VisaApplication } from '../applicationSteps/visa-application.entity';
 import { User } from '../auth/auth.entity';
 import { EmailTemplate } from '../email-templates/email-template.entity';
+import { EmailLog } from '../email-logs/email-log.entity';
 import { AuthGuard } from '../shared/middlewares/authGuad.middleware';
 import { JwtService } from '@nestjs/jwt';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([VisaApplication, User, EmailTemplate])
+    SequelizeModule.forFeature([VisaApplication, User, EmailTemplate, EmailLog])
   ],
   controllers: [AdminController],
   providers: [AdminService, AuthGuard, JwtService],
