@@ -8,8 +8,7 @@ export const emailTemplates = [
       "<p><strong>Previous Status:</strong> ${oldStatus || 'Unknown'}</p>" +
       "<p><strong>New Status:</strong> ${status}</p>" +
       "<p><strong>Message:</strong> ${message}</p>" +
-      "${notes ? `<p><strong>Additional Notes:</strong> ${notes}</p>` : ''}" +
-      "<p>Please log in to your account to view more details.</p>"
+      "${notes ? `<p><strong>Additional Notes:</strong> ${notes}</p>` : ''}"
   },
   {
     key: "application_submitted",

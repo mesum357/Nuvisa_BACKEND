@@ -541,7 +541,6 @@ export class AdminService {
                   <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
                   <p><strong>Message:</strong> ${message}</p>
                   ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
-                  <p>Please log in to your account to view more details.</p>
                 `
               },
               footerContent
@@ -561,7 +560,6 @@ export class AdminService {
                 <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
                 <p><strong>Message:</strong> ${message}</p>
                 ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
-                <p>Please log in to your account to view more details.</p>
               `
             },
             footerContent
