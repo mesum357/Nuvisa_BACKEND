@@ -72,7 +72,7 @@ export async function sendEmail(emailMeta, footerContent?: any) {
   }
 }
 
-const getEmailTemplateHeaderFooter = (emailContent, footerContent?: any, excludeDecorativeImage: boolean = false) => {
+export const getEmailTemplateHeaderFooter = (emailContent, footerContent?: any, excludeDecorativeImage: boolean = false) => {
   // Get logo URL
   const logoUrl = footerContent?.logo || '';
   const logoSrc = footerContent?.logo_cid ? `cid:${footerContent.logo_cid}` : logoUrl;
