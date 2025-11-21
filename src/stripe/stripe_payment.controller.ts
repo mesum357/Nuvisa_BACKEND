@@ -45,6 +45,24 @@ export class StripeController {
     }
   }
 
+  @Post("payment-intent")
+  @UsePipes(ValidationPipe)
+  async createPaymentIntent(
+    @Body() checkoutSessionDto: checkoutSessionDto
+  ): Promise<any> {
+    try {
+      const data =
+        await this.stripeService.createPaymentIntent(checkoutSessionDto);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        "Payment Intent Created Successfully"
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
+
   @Post("webhook")
   async handleStripeWebhook(@Req() req: Request, @Res() res: Response) {
     try {

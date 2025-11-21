@@ -111,6 +111,58 @@ export class StripeService {
     }
   }
 
+  async createPaymentIntent(checkoutData: checkoutSessionDto): Promise<any> {
+    try {
+      const stripe = Stripe(Env.stripeSecretKey);
+
+      let { email, amount, paymentType } = checkoutData;
+
+      const currency = (checkoutData.currency || "GBP")
+        .toString()
+        .toLowerCase();
+
+      const amountInCents = Math.round(Number(amount) * 100);
+
+      let authResponse = {};
+
+      if (paymentType === "application_creation" || !paymentType) {
+        const loginDto = {
+          email: email,
+          sessionUser: true,
+        };
+
+        authResponse = await this.authService.login(loginDto, "checkout");
+      } else {
+        authResponse = {
+          message: "Using existing session for insurance payment",
+          token: "existing_session_reused",
+        };
+      }
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amountInCents,
+        currency: currency,
+        payment_method_types: ["card"],
+        metadata: {
+          ...checkoutData,
+        },
+        receipt_email: email,
+      });
+
+      return {
+        clientSecret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.id,
+        amount: amountInCents,
+        currency: currency,
+        ...authResponse,
+      };
+    } catch (err) {
+      callHTTPException(
+        `Something went wrong while creating payment intent: ${err.message}`
+      );
+    }
+  }
+
   async handleWebhook(req: Request & { rawBody: Buffer }) {
     try {
       const stripe = new Stripe(Env.stripeSecretKey, {
