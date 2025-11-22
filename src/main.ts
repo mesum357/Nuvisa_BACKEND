@@ -48,6 +48,11 @@ async function bootstrap() {
   // CORS Configuration
   const allowedOrigins = Env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
   
+  // Add Vercel URL if not already in environment
+  if (!allowedOrigins.includes('https://nuvisa-fe.vercel.app')) {
+    allowedOrigins.push('https://nuvisa-fe.vercel.app');
+  }
+  
   app.enableCors({
     origin: allowedOrigins,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
