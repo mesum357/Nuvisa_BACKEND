@@ -12,13 +12,13 @@ export class checkoutSessionDto {
   @IsString()
   email: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  successUrl: string;
+  successUrl?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  cancelUrl: string;
+  cancelUrl?: string;
 
   @IsString()
   @IsNotEmpty()
