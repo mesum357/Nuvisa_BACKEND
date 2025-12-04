@@ -20,9 +20,10 @@ export class checkoutSessionDto {
   @IsString()
   cancelUrl?: string;
 
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  travellers: string;
+  travellers?: string;
 
   @IsString()
   @IsNotEmpty()
