@@ -9,9 +9,14 @@ import { AuthService } from "src/auth/auth.service";
 import { VisaService } from "src/visaApis/visaApi.service";
 import { VisaAPiAuthService } from "src/shared/services/getAuthToken.service";
 import { VisaApplicationService } from "src/applicationSteps/visa-application.service";
+import { GiftCardService } from "src/gift-card/gift-card.service";
+import { GiftCardModule } from "src/gift-card/gift-card.module";
 
 @Module({
-  imports: [SequelizeModule.forFeature([Payment])],
+  imports: [
+    SequelizeModule.forFeature([Payment]),
+    GiftCardModule,
+  ],
   controllers: [StripeController],
   providers: [
     StripeService,

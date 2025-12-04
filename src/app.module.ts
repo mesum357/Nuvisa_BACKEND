@@ -17,6 +17,7 @@ import { VisaApplicationModule } from "./applicationSteps/visa-application.modul
 import { VisaApplicationService } from "./applicationSteps/visa-application.service";
 import { AdminModule } from "./admin/admin.module";
 import { UploadModule } from "./upload/upload.module";
+import { GiftCardModule } from "./gift-card/gift-card.module";
 import { EmailTemplate } from "./email-templates/email-template.entity";
 import { EmailLog } from "./email-logs/email-log.entity";
 
@@ -53,6 +54,7 @@ import { EmailLog } from "./email-logs/email-log.entity";
     VisaApplicationModule,
     AdminModule,
     UploadModule,
+    GiftCardModule,
   ],
   controllers: [AppController],
   providers: [
@@ -90,6 +92,9 @@ export class AppModule implements OnModuleInit {
     try {
       // Create site_content table if it doesn't exist
       await this.createSiteContentTable();
+      
+      // Create gift_cards table if it doesn't exist
+      await this.createGiftCardsTable();
       
       await this.sequelize.sync({ alter: true });
       
@@ -178,6 +183,115 @@ export class AppModule implements OnModuleInit {
     }
   }
 
+  async createGiftCardsTable() {
+    try {
+      // Check if table exists first
+      const tableExistsResult = await this.sequelize.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'gift_cards'
+        ) as exists;
+      `, { type: QueryTypes.SELECT }) as Array<{ exists: boolean }>;
+
+      const exists = tableExistsResult && tableExistsResult.length > 0 && tableExistsResult[0]?.exists === true;
+
+      if (!exists) {
+        console.log('Creating gift_cards table...');
+        
+        // Create table with all required fields
+        await this.sequelize.query(`
+          CREATE TABLE gift_cards (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            code VARCHAR(255) NOT NULL UNIQUE,
+            email VARCHAR(255) NOT NULL,
+            stripe_session_id VARCHAR(255),
+            stripe_payment_intent_id VARCHAR(255),
+            amount VARCHAR(255) NOT NULL,
+            purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            used_at TIMESTAMP,
+            used_by_user_id UUID,
+            used_by_email VARCHAR(255),
+            is_used BOOLEAN DEFAULT FALSE,
+            quantity INTEGER,
+            purchase_group_id UUID,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        // Create index on code for faster lookups
+        await this.sequelize.query(`
+          CREATE INDEX IF NOT EXISTS gift_cards_code_idx ON gift_cards(code);
+        `);
+
+        // Create index on email for faster queries
+        await this.sequelize.query(`
+          CREATE INDEX IF NOT EXISTS gift_cards_email_idx ON gift_cards(email);
+        `);
+
+        // Create index on is_used for faster filtering
+        await this.sequelize.query(`
+          CREATE INDEX IF NOT EXISTS gift_cards_is_used_idx ON gift_cards(is_used);
+        `);
+
+        // Create index on purchase_group_id for grouping related cards
+        await this.sequelize.query(`
+          CREATE INDEX IF NOT EXISTS gift_cards_purchase_group_id_idx ON gift_cards(purchase_group_id);
+        `);
+
+        console.log('✓ Gift cards table created successfully');
+      } else {
+        console.log('✓ Gift cards table already exists');
+        
+        // Check if new columns exist and add them if they don't
+        try {
+          const columnsResult = await this.sequelize.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = 'gift_cards'
+            AND column_name IN ('quantity', 'purchase_group_id')
+          `, { type: QueryTypes.SELECT }) as Array<{ column_name: string }>;
+          
+          const existingColumns = columnsResult.map(col => col.column_name);
+          
+          if (!existingColumns.includes('quantity')) {
+            console.log('Adding quantity column to gift_cards table...');
+            await this.sequelize.query(`
+              ALTER TABLE gift_cards 
+              ADD COLUMN quantity INTEGER;
+            `);
+            console.log('✓ quantity column added');
+          }
+          
+          if (!existingColumns.includes('purchase_group_id')) {
+            console.log('Adding purchase_group_id column to gift_cards table...');
+            await this.sequelize.query(`
+              ALTER TABLE gift_cards 
+              ADD COLUMN purchase_group_id UUID;
+            `);
+            await this.sequelize.query(`
+              CREATE INDEX IF NOT EXISTS gift_cards_purchase_group_id_idx ON gift_cards(purchase_group_id);
+            `);
+            console.log('✓ purchase_group_id column added');
+          }
+        } catch (migrationError: any) {
+          console.error('⚠️  Error adding new columns to gift_cards table:', migrationError?.message);
+          // Don't throw - allow app to continue
+        }
+      }
+    } catch (error: any) {
+      console.error('✗ Error creating gift_cards table:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        code: error?.code,
+        name: error?.name
+      });
+      // Don't throw - allow app to continue even if table creation fails
+    }
+  }
+
   async initializeEmailTemplates() {
     try {
       const EmailTemplate = this.sequelize.models.EmailTemplate;
@@ -223,6 +337,14 @@ export class AppModule implements OnModuleInit {
           subject: 'Visa Application Update',
           body: '<p>Hi ${userName},</p><p>Your visa application status has been updated.</p><p><strong>Application Number:</strong> ${applicationNo}</p><p><strong>Status:</strong> ${status}</p>${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ""}<p>Please contact us if you have any questions.</p>',
           description: 'Email template for rejected applications',
+          isActive: true,
+        },
+        {
+          key: 'gift_card_purchase',
+          name: 'Gift Card Purchase',
+          subject: 'Your Gift Card Purchase - Redemption Code',
+          body: '<p>Hi,</p><p>Thank you for your gift card purchase!</p><p>Your gift card redemption code is:</p><p style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #000000; background: #f5f5f5; padding: 20px; display: inline-block; border-radius: 8px; margin: 20px 0; font-family: monospace;">${code}</p><p><strong>Purchase Amount:</strong> £${amount}</p><p>You can use this code during checkout to get <strong>1 free traveller and 1 free insurance</strong>.</p><p><strong>Important:</strong> This code can only be used once and will expire upon use.</p><p>If you have any questions, please contact us at support@nuvisa.co.uk</p>',
+          description: 'Email template for gift card purchase confirmation',
           isActive: true,
         },
       ];

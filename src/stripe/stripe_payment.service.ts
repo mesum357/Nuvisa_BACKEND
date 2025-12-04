@@ -11,13 +11,15 @@ import { Request } from "express";
 
 import { AuthService } from "src/auth/auth.service";
 import { VisaService } from "src/visaApis/visaApi.service";
+import { GiftCardService } from "src/gift-card/gift-card.service";
 
 @Injectable()
 export class StripeService {
   constructor(
     private readonly authService: AuthService,
     private readonly visaService: VisaService,
-    private readonly visaApplicationService: VisaApplicationService
+    private readonly visaApplicationService: VisaApplicationService,
+    private readonly giftCardService: GiftCardService
   ) { }
 
   async createCheckoutSession(checkoutData: checkoutSessionDto): Promise<any> {
@@ -36,7 +38,11 @@ export class StripeService {
 
       let authResponse = {};
 
-      if (paymentType === "application_creation" || !paymentType) {
+      // Handle comma-separated payment types (e.g., "application_creation,gift_card")
+      const paymentTypes = paymentType ? paymentType.split(',').map(t => t.trim()) : [];
+      const hasApplicationCreation = !paymentType || paymentTypes.includes("application_creation");
+      
+      if (hasApplicationCreation) {
         const loginDto = {
           email: email,
           sessionUser: true,
@@ -125,7 +131,11 @@ export class StripeService {
 
       let authResponse = {};
 
-      if (paymentType === "application_creation" || !paymentType) {
+      // Handle comma-separated payment types (e.g., "application_creation,gift_card")
+      const paymentTypes = paymentType ? paymentType.split(',').map(t => t.trim()) : [];
+      const hasApplicationCreation = !paymentType || paymentTypes.includes("application_creation");
+      
+      if (hasApplicationCreation) {
         const loginDto = {
           email: email,
           sessionUser: true,
@@ -199,6 +209,39 @@ export class StripeService {
           await this.handlePaymentSuccess(event["data"]["object"]);
           break;
 
+        case "payment_intent.succeeded":
+          // Handle payment intent success (for createPaymentIntent flow)
+          const paymentIntent = event["data"]["object"];
+          console.log("🔍 Payment Intent Webhook - Full object:", JSON.stringify(paymentIntent, null, 2));
+          console.log("🔍 Payment Intent Webhook - Metadata:", JSON.stringify(paymentIntent.metadata || {}, null, 2));
+          console.log("🔍 Payment Intent Webhook - Receipt Email:", paymentIntent.receipt_email);
+          
+          // Convert payment intent structure to match checkout session structure
+          // Ensure email is in metadata, fallback to receipt_email if not
+          const metadata = paymentIntent.metadata || {};
+          if (!metadata.email && paymentIntent.receipt_email) {
+            metadata.email = paymentIntent.receipt_email;
+          }
+          // Ensure amount is in metadata (convert from cents to dollars/pounds)
+          if (!metadata.amount && paymentIntent.amount) {
+            metadata.amount = (paymentIntent.amount / 100).toString();
+          }
+          
+          const paymentIntentData = {
+            id: paymentIntent.id,
+            payment_intent: paymentIntent.id,
+            metadata: metadata,
+            amount_total: paymentIntent.amount, // Amount in cents
+            currency: paymentIntent.currency,
+            customer_details: {
+              email: paymentIntent.receipt_email || metadata.email,
+            },
+          };
+          
+          console.log("🔍 Payment Intent Data for handlePaymentSuccess:", JSON.stringify(paymentIntentData, null, 2));
+          await this.handlePaymentSuccess(paymentIntentData);
+          break;
+
         case "invoice.payment_failed":
           break;
 
@@ -217,10 +260,92 @@ export class StripeService {
 
   async handlePaymentSuccess(data) {
     try {
-      if (
-        data.metadata.paymentType === "additional_traveler_insurance" ||
-        data.metadata.paymentType === "traveler_insurance"
-      ) {
+      // Parse comma-separated payment types (e.g., "application_creation,gift_card")
+      const paymentType = data.metadata?.paymentType || "";
+      console.log("🔍 Payment success handler - paymentType:", paymentType);
+      console.log("🔍 Payment success handler - metadata:", JSON.stringify(data.metadata || {}));
+      
+      const paymentTypes = paymentType.split(',').map(t => t.trim()).filter(t => t);
+      const hasGiftCard = paymentTypes.includes("gift_card");
+      const hasApplicationCreation = paymentTypes.includes("application_creation");
+      const hasInsurance = paymentTypes.includes("additional_traveler_insurance") || 
+                          paymentTypes.includes("traveler_insurance");
+      
+      console.log("🔍 Parsed payment types:", { paymentTypes, hasGiftCard, hasApplicationCreation, hasInsurance });
+
+      // Handle gift card purchases (can be combined with other payment types)
+      if (hasGiftCard) {
+        console.log('✅ Gift card payment detected');
+        // Try to get email from multiple sources
+        const email = data.metadata?.email || 
+                     data.customer_details?.email || 
+                     (data.amount_total ? null : null); // Will check receipt_email in payment intent
+        // Try to get amount from multiple sources
+        let amount = data.metadata?.amount;
+        if (!amount && data.amount_total) {
+          // Convert from cents to dollars/pounds
+          amount = (data.amount_total / 100).toString();
+        }
+        // Get quantity from metadata (default to 1 if not provided)
+        const quantity = data.metadata?.quantity 
+          ? parseInt(data.metadata.quantity, 10) 
+          : (data.metadata?.noOfGiftCards ? parseInt(data.metadata.noOfGiftCards, 10) : 1);
+        const stripeSessionId = data.id || null;
+        const stripePaymentIntentId = data.payment_intent || data.id || null;
+        
+        console.log('🎁 Gift Card Details:');
+        console.log('   📧 Email (metadata):', data.metadata?.email);
+        console.log('   📧 Email (customer_details):', data.customer_details?.email);
+        console.log('   📧 Email (final):', email);
+        console.log('   💰 Amount (metadata):', data.metadata?.amount);
+        console.log('   💰 Amount (amount_total):', data.amount_total);
+        console.log('   💰 Amount (final):', amount);
+        console.log('   📦 Quantity:', quantity);
+        console.log('   🏷️  Payment Type:', paymentType);
+        console.log('   🔑 Stripe Session ID:', stripeSessionId);
+        console.log('   💳 Stripe Payment Intent ID:', stripePaymentIntentId);
+
+        if (!email || !amount) {
+          console.error("❌ GIFT CARD PAYMENT METADATA INCOMPLETE");
+          console.error("Missing required data:", {
+            email: !!email,
+            email_from_metadata: !!data.metadata?.email,
+            email_from_customer_details: !!data.customer_details?.email,
+            amount: !!amount,
+            amount_from_metadata: !!data.metadata?.amount,
+            amount_from_total: !!data.amount_total,
+            full_data: JSON.stringify(data, null, 2),
+          });
+        } else {
+          try {
+            await this.giftCardService.createGiftCard({
+              email,
+              amount,
+              quantity: quantity,
+              stripe_session_id: stripeSessionId,
+              stripe_payment_intent_id: stripePaymentIntentId,
+            });
+            console.log(`✓ Gift card created with quantity ${quantity} and email sent successfully`);
+          } catch (error) {
+            console.error("❌ Error creating gift card:", error);
+            console.error("❌ Gift card creation error details:", {
+              email,
+              amount,
+              errorMessage: error.message,
+              errorStack: error.stack,
+            });
+            // Don't throw - allow payment to complete even if gift card creation fails
+          }
+        }
+        
+        // If gift card is the only payment type, return early
+        if (!hasApplicationCreation && !hasInsurance) {
+          return;
+        }
+      }
+
+      // Handle insurance payments
+      if (hasInsurance) {
         const applicationId = data.metadata.applicationId;
         const paymentAmount = Number(
           data.metadata.amountGBP ?? data.metadata.amount
@@ -347,7 +472,8 @@ export class StripeService {
             paymentDate: new Date().toISOString(),
           });
         }
-      } else {
+      } else if (hasApplicationCreation) {
+        // Handle application creation (can be combined with gift card)
         await this.visaApplicationService.createOrUpdateApplication({
           type: VisaApplicationStepType.CREATE_APPLICATION,
           email: data.metadata.email,

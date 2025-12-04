@@ -74,6 +74,21 @@ async function bootstrap() {
   app.set("trust proxy", 1);
 
   await app.listen(port);
+  
+  // Log server information
+  const localUrl = `http://localhost:${port}`;
+  const configuredUrl = Env.WEBSITE_URL ? Env.WEBSITE_URL.replace(/\/$/, '') : null;
+  console.log('\n========================================');
+  console.log('🚀 NUVISA Backend Server Started');
+  console.log('========================================');
+  console.log(`📡 Port: ${port}`);
+  console.log(`🌐 Local URL: ${localUrl}`);
+  if (configuredUrl) {
+    console.log(`🌍 Configured URL: ${configuredUrl}`);
+  }
+  console.log(`📚 Swagger API Docs: ${localUrl}/api`);
+  console.log(`🔗 Webhook Endpoint: ${localUrl}/stripe_payment/webhook`);
+  console.log('========================================\n');
 }
 
 bootstrap();

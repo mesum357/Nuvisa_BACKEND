@@ -67,7 +67,35 @@ export async function sendEmail(emailMeta, footerContent?: any) {
     const result = await transporter.sendMail(mailOptions);
     return result;
   } catch (err) {
-    console.error("Failed to send email:", err);
+    console.error("❌ Failed to send email:", err);
+    console.error("📧 Email details:", {
+      to: emailMeta.emailAddress,
+      subject: emailMeta.subject,
+      from: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk",
+      smtpHost: Env.SMTP_HOST || "mail.privateemail.com",
+      smtpPort: Env.SMTP_PORT || 587,
+      smtpUser: Env.SMTP_USER || Env.MAILER_EMAIL || "not set",
+    });
+    
+    // Provide helpful error message for authentication failures
+    if (err.code === 'EAUTH' || err.responseCode === 535) {
+      const errorMsg = `SMTP Authentication Failed: Please verify your SMTP credentials in .env file.
+      
+Common issues:
+1. SMTP_USER and SMTP_PASS may be incorrect or expired
+2. If using mail.privateemail.com, ensure SMTP_USER matches your PrivateEmail account
+3. If using Gmail, you may need an App Password instead of your regular password
+4. Check if your email account requires "Less secure app access" or 2FA is enabled
+
+Current configuration:
+- SMTP Host: ${Env.SMTP_HOST || "mail.privateemail.com"}
+- SMTP User: ${Env.SMTP_USER || Env.MAILER_EMAIL || "NOT SET"}
+- From Email: ${Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk"}
+
+Original error: ${err.message}`;
+      throw new Error(errorMsg);
+    }
+    
     throw new Error(`Failed to send email: ${err.message}`);
   }
 }

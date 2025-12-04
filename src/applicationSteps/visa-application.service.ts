@@ -243,7 +243,7 @@ export class VisaApplicationService {
   ) {
     try {
       const { id } = getApplicationByIdDto;
-      console.log(id, "TEMPPP");
+      // console.log(id, "TEMPPP");
 
       const userVisaApplication = await VisaApplication.findByPk(id);
 
@@ -251,7 +251,7 @@ export class VisaApplicationService {
         callHTTPException("Visa application not found");
       }
 
-      console.log(userVisaApplication, "TEMPPPPPPP");
+      // console.log(userVisaApplication, "TEMPPPPPPP");
       let parsedTravelersData = null;
 
       if (userVisaApplication.travelersData) {
@@ -342,7 +342,7 @@ export class VisaApplicationService {
       //   await userVisaApplication.save();
       // }
 
-      console.log(parsedTravelersData, "TEMPPP");
+      // console.log(parsedTravelersData, "TEMPPP");
 
       if (Array.isArray(parsedTravelersData)) {
         parsedTravelersData = parsedTravelersData.map((traveler) => {
