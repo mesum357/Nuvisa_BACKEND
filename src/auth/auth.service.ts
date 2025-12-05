@@ -262,12 +262,15 @@ export class AuthService {
             template
           );
           
+          // Prepend OTP code to subject for OTP emails
+          const finalSubject = emailType === "otp_email" ? `${otp} ${subject}` : subject;
+          
           const footerContent = await this.getEmailFooterContent();
           
           await sendEmail(
             {
               emailAddress: dynamicData.email,
-              subject,
+              subject: finalSubject,
               body: emailBody,
               excludeDecorativeImage: true,
             },
@@ -276,11 +279,15 @@ export class AuthService {
         } else {
           // Fallback to static templates
           const { subject, emailBody } = await renderTemplate(emailType, dynamicData);
+          
+          // Prepend OTP code to subject for OTP emails
+          const finalSubject = emailType === "otp_email" ? `${otp} ${subject}` : subject;
+          
           const footerContent = await this.getEmailFooterContent();
           await sendEmail(
             {
               emailAddress: dynamicData.email,
-              subject,
+              subject: finalSubject,
               body: emailBody,
               excludeDecorativeImage: true,
             },
@@ -290,11 +297,15 @@ export class AuthService {
       } catch (templateError) {
         // Fallback to static templates
         const { subject, emailBody } = await renderTemplate(emailType, dynamicData);
+        
+        // Prepend OTP code to subject for OTP emails
+        const finalSubject = emailType === "otp_email" ? `${otp} ${subject}` : subject;
+        
         const footerContent = await this.getEmailFooterContent();
         await sendEmail(
           {
             emailAddress: dynamicData.email,
-            subject,
+            subject: finalSubject,
             body: emailBody,
             excludeDecorativeImage: true,
           },

@@ -53,8 +53,14 @@ export async function sendEmail(emailMeta, footerContent?: any) {
     const emailTemplate = getEmailTemplateHeaderFooter(body, footerContent, excludeDecorativeImage);
 
     const mailOptions: any = {
-      from: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk",
-      replyTo: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk",
+      from: {
+        name: 'NUvisa Support',
+        address: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk"
+      },
+      replyTo: {
+        name: 'NUvisa Support',
+        address: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk"
+      },
       to: emailAddress,
       subject: subject,
       html: emailTemplate,
