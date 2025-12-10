@@ -5,7 +5,7 @@ import { Env } from "../config";
 
 export async function sendEmail(emailMeta, footerContent?: any) {
   try {
-    const { emailAddress, subject, body, excludeDecorativeImage } = emailMeta;
+    const { emailAddress, subject, body, excludeDecorativeImage, inlineImages } = emailMeta;
     
     if (!emailAddress || !subject) {
       throw new Error("Email address and subject are required");
@@ -65,6 +65,18 @@ export async function sendEmail(emailMeta, footerContent?: any) {
       subject: subject,
       html: emailTemplate,
     };
+
+    // Attach any inline images provided by callers (e.g., gift card artwork)
+    if (inlineImages && Array.isArray(inlineImages) && inlineImages.length > 0) {
+      if (!attachments) attachments = [];
+      attachments.push(
+        ...inlineImages.map((img) => ({
+          filename: img.filename,
+          path: img.path,
+          cid: img.cid,
+        }))
+      );
+    }
 
     if (attachments && attachments.length > 0) {
       mailOptions.attachments = attachments;

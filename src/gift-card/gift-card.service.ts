@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
 import { Sequelize } from "sequelize-typescript";
+import { v4 as uuidv4 } from "uuid";
 import { GiftCard } from "./gift-card.entity";
 import { callHTTPException } from "src/shared/exceptions";
 import { sendEmail, renderTemplateFromDB } from "src/shared/services/sendEmail.service";
@@ -57,7 +58,7 @@ export class GiftCardService {
 
   /**
    * Create a gift card after successful payment
-   * Stores the quantity (number of gift cards purchased) in the single gift card record
+   * Generates separate unique codes for each gift card based on quantity
    */
   async createGiftCard(data: {
     email: string;
@@ -76,28 +77,37 @@ export class GiftCardService {
       console.log('   🔑 Stripe Session ID:', data.stripe_session_id || 'N/A');
       console.log('   💳 Stripe Payment Intent ID:', data.stripe_payment_intent_id || 'N/A');
       
-      const code = await this.generateUniqueCode();
-      console.log('   🎫 Generated Code:', code);
+      // Generate a unique purchase group ID (UUID) to link all gift cards from this purchase
+      const purchase_group_id = uuidv4();
+      
+      const giftCards: GiftCard[] = [];
+      
+      // Generate separate codes for each gift card
+      for (let i = 0; i < quantity; i++) {
+        const code = await this.generateUniqueCode();
+        console.log(`   🎫 Generated Code ${i + 1}/${quantity}:`, code);
 
-      const giftCard = await this.giftCardModel.create({
-        code,
-        email: data.email,
-        amount: data.amount,
-        stripe_session_id: data.stripe_session_id || null,
-        stripe_payment_intent_id: data.stripe_payment_intent_id || null,
-        purchased_at: new Date(),
-        is_used: false,
-        quantity: quantity,
-        purchase_group_id: null, // Not needed for single card approach
-      });
+        const giftCard = await this.giftCardModel.create({
+          code,
+          email: data.email,
+          amount: data.amount,
+          stripe_session_id: data.stripe_session_id || null,
+          stripe_payment_intent_id: data.stripe_payment_intent_id || null,
+          purchased_at: new Date(),
+          is_used: false,
+          quantity: 1, // Each card represents 1 gift card
+          purchase_group_id: purchase_group_id, // Link all cards from same purchase
+        });
 
-      console.log('   ✅ Gift card created in database with ID:', giftCard.id);
-      console.log('   📦 Quantity stored:', giftCard.quantity);
+        giftCards.push(giftCard);
+        console.log(`   ✅ Gift card ${i + 1}/${quantity} created in database with ID:`, giftCard.id);
+      }
 
-      // Send email with the single code
-      await this.sendGiftCardEmail(giftCard);
+      // Send email with all codes
+      await this.sendGiftCardEmail(giftCards);
 
-      return giftCard;
+      // Return the first gift card for backward compatibility
+      return giftCards[0];
     } catch (error) {
       console.error("Error creating gift card:", error);
       callHTTPException(`Failed to create gift card: ${error.message}`);
@@ -105,15 +115,20 @@ export class GiftCardService {
   }
 
   /**
-   * Send gift card email with redemption code
+   * Send gift card email with redemption code(s)
    */
-  private async sendGiftCardEmail(giftCard: GiftCard): Promise<void> {
+  private async sendGiftCardEmail(giftCards: GiftCard[]): Promise<void> {
+    // Handle both single gift card and array for backward compatibility
+    const giftCardsArray = Array.isArray(giftCards) ? giftCards : [giftCards];
+    const firstCard = giftCardsArray[0];
+    
     try {
+      
       console.log('📧 Sending Gift Card Email:');
-      console.log('   📧 To:', giftCard.email);
-      console.log('   🎫 Code:', giftCard.code);
-      console.log('   💰 Amount:', giftCard.amount);
-      console.log('   📦 Quantity:', giftCard.quantity || 1);
+      console.log('   📧 To:', firstCard.email);
+      console.log('   🎫 Number of Codes:', giftCardsArray.length);
+      console.log('   🎫 Codes:', giftCardsArray.map(gc => gc.code).join(', '));
+      console.log('   💰 Amount:', firstCard.amount);
       
       // Get email template from database
       const template = await EmailTemplate.findOne({
@@ -126,11 +141,14 @@ export class GiftCardService {
         return;
       }
 
+      // Prepare codes data - send all codes to the email template
+      const codes = giftCardsArray.map(gc => gc.code);
       const dynamicData = {
-        code: giftCard.code,
-        amount: giftCard.amount,
-        quantity: giftCard.quantity || 1,
-        email: giftCard.email,
+        code: codes[0], // Primary code for backward compatibility
+        codes: codes, // All codes as an array
+        amount: firstCard.amount,
+        quantity: giftCardsArray.length,
+        email: firstCard.email,
       };
 
       const { subject, emailBody } = await renderTemplateFromDB(
@@ -139,16 +157,105 @@ export class GiftCardService {
         template
       );
 
+      // Ensure gift card artwork is embedded inline so email clients don't block it
+      const giftCardImageCid = "gift-card-image";
+      
+      // Generate multiple gift card images (one for each code)
+      const giftCardImagesHtml = codes.map((code, index) => 
+        `<div style="text-align: center; margin: 24px 0 12px 0;">
+          <img src="cid:${giftCardImageCid}" alt="NUvisa gift card ${index + 1} of ${codes.length}" style="max-width: 100%; height: auto; border-radius: 12px; display: inline-block; box-shadow: 0 8px 20px rgba(0,0,0,0.08);">
+        </div>`
+      ).join('');
+
+      let finalEmailBody = emailBody;
+      
+      // Update the redemption text based on number of travellers
+      const travellerText = codes.length === 1 
+        ? `Your gift card redemption code for 1 traveller is:` 
+        : `Your gift card redemption codes for ${codes.length} travellers are:`;
+      
+      // Replace the redemption text in the email
+      finalEmailBody = finalEmailBody.replace(
+        /Your gift card redemption code is:/i,
+        travellerText
+      );
+      
+      // Replace single code with all codes if multiple gift cards
+      if (codes.length > 1) {
+        // Generate HTML for all codes (without "Gift Card X of Y" text)
+        const allCodesHtml = codes.map((code) => 
+          `<div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 12px 0; text-align: center;">
+            <p style="margin: 0; font-size: 32px; font-weight: bold; letter-spacing: 2px; color: #000; font-family: 'Courier New', monospace;">${code}</p>
+          </div>`
+        ).join('');
+        
+        // Find and replace the single code block with all codes
+        const singleCodeRegex = new RegExp(`<p[^>]*style="[^"]*font-size:\\s*32px[^"]*"[^>]*>${codes[0]}<\\/p>`, 'i');
+        if (singleCodeRegex.test(finalEmailBody)) {
+          finalEmailBody = finalEmailBody.replace(singleCodeRegex, allCodesHtml);
+        } else {
+          // Fallback: try to find the code anywhere in the body
+          const codeOnlyRegex = new RegExp(codes[0], 'g');
+          const firstOccurrence = finalEmailBody.indexOf(codes[0]);
+          if (firstOccurrence !== -1) {
+            // Replace first occurrence with all codes
+            finalEmailBody = finalEmailBody.substring(0, firstOccurrence) + 
+                           allCodesHtml + 
+                           finalEmailBody.substring(firstOccurrence + codes[0].length);
+          }
+        }
+      }
+      
+      if (!finalEmailBody.includes(giftCardImageCid)) {
+        // Insert the images right after the code block(s)
+        const codeBlockRegex = /<div[^>]*style="[^"]*background:\s*#f5f5f5[^"]*"[^>]*>[\s\S]*?<\/div>/gi;
+        const codeBlocks = finalEmailBody.match(codeBlockRegex);
+        
+        if (codeBlocks && codeBlocks.length > 0) {
+          // Find the position after the last code block
+          const lastCodeBlock = codeBlocks[codeBlocks.length - 1];
+          const lastCodeBlockIndex = finalEmailBody.lastIndexOf(lastCodeBlock);
+          const insertPosition = lastCodeBlockIndex + lastCodeBlock.length;
+          
+          // Insert all images after the last code block
+          finalEmailBody = finalEmailBody.substring(0, insertPosition) + 
+                          giftCardImagesHtml + 
+                          finalEmailBody.substring(insertPosition);
+        } else {
+          // Fallback: try to find single code in paragraph tag
+          const singleCodeRegex = /<p[^>]*style="[^"]*font-size:\s*32px[^"]*"[^>]*>.*?<\/p>/i;
+          const match = finalEmailBody.match(singleCodeRegex);
+          
+          if (match) {
+            const codePosition = finalEmailBody.indexOf(match[0]);
+            const insertPosition = codePosition + match[0].length;
+            finalEmailBody = finalEmailBody.substring(0, insertPosition) + 
+                           giftCardImagesHtml + 
+                           finalEmailBody.substring(insertPosition);
+          } else {
+            // Last resort: append near the top
+            finalEmailBody = `${giftCardImagesHtml}${finalEmailBody}`;
+          }
+        }
+      }
+
       // Get footer content
       const footerContent = await this.getEmailFooterContent();
 
       // Send email
       await sendEmail(
         {
-          emailAddress: giftCard.email,
+          emailAddress: firstCard.email,
           subject,
-          body: emailBody,
+          body: finalEmailBody,
           excludeDecorativeImage: false,
+          inlineImages: [
+            {
+              filename: "gift-card.png",
+              path: "https://www.nuvisa.co.uk/image/gitftnewcard.png",
+              cid: giftCardImageCid,
+            },
+          ],
         },
         footerContent
       );
@@ -157,10 +264,10 @@ export class GiftCardService {
     } catch (error) {
       console.error("❌ Error sending gift card email:", error);
       console.error("📧 Gift card email details:", {
-        recipient: giftCard.email,
-        code: giftCard.code,
-        quantity: giftCard.quantity || 1,
-        amount: giftCard.amount,
+        recipient: firstCard.email,
+        codes: giftCardsArray.map(gc => gc.code),
+        quantity: giftCardsArray.length,
+        amount: firstCard.amount,
         errorMessage: error.message,
         errorCode: error.code,
       });
