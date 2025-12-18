@@ -52,15 +52,11 @@ export async function sendEmail(emailMeta, footerContent?: any) {
 
     const emailTemplate = getEmailTemplateHeaderFooter(body, footerContent, excludeDecorativeImage);
 
+    const fromEmail = Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk";
+    
     const mailOptions: any = {
-      from: {
-        name: 'NUvisa Support',
-        address: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk"
-      },
-      replyTo: {
-        name: 'NUvisa Support',
-        address: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk"
-      },
+      from: `NUvisa Support <${fromEmail}>`,
+      replyTo: `NUvisa Support <${fromEmail}>`,
       to: emailAddress,
       subject: subject,
       html: emailTemplate,
