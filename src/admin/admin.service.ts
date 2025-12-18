@@ -1885,7 +1885,7 @@ export class AdminService {
       // Use company info from database or fallback
       if (companyInfo.length === 0) {
         companyInfo = [
-          `If you have any questions, please visit our <a href="${helpCentreUrl}" style="color: #000000; text-decoration: underline;">Help Centre</a>.`
+          'NUvisa is an independent company that offers efficient and professional assistance in obtaining visas and other travel products online fast. The company and site are not associated with any governmental agency. VAT registration no: 412344437 | D-U-N-S Number: 227538057 7. | ICO registration number: ZB732764. Registered Office: 2 Brunel Way, The Future Works, Slough, Greater London, England, SL1 1FQ | <a href="mailto:support@nuvisa.co.uk" style="color: #000000; text-decoration: underline;">support@nuvisa.co.uk</a> | +44 7388120901'
         ];
       }
       
