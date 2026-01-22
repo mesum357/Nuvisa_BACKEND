@@ -17,23 +17,22 @@ async function bootstrap() {
 
   // CRITICAL: Apply raw body parser to webhook route BEFORE any other body parsing
   // This MUST be first to capture the exact raw bytes before any JSON parsing
+  // Using bodyParser.raw() with verify function - this is called BEFORE any parsing
   app.use(
     "/stripe_payment/webhook",
-    express.raw({ type: "application/json", limit: "50mb" }),
-    (req: any, res, next) => {
-      // express.raw() sets req.body to a Buffer - this is what we need
-      // Store it as rawBody for Stripe signature verification
-      if (Buffer.isBuffer(req.body)) {
-        req.rawBody = req.body;
-        // Clear req.body to prevent any JSON parsing later
-        // But keep rawBody for verification
-      } else {
-        console.error("❌ WARNING: req.body is not a Buffer after express.raw()");
-        console.error("   Type:", typeof req.body);
-        console.error("   Is Buffer:", Buffer.isBuffer(req.body));
-      }
-      next();
-    }
+    bodyParser.raw({
+      type: "application/json",
+      limit: "50mb",
+      verify: (req: any, res, buf: Buffer, encoding: string) => {
+        // This verify function receives the raw Buffer BEFORE any parsing
+        // Store it directly - this is the exact raw body Stripe needs
+        req.rawBody = buf;
+        console.log("✅ Raw body captured in middleware verify function");
+        console.log("   Raw body type:", typeof req.rawBody);
+        console.log("   Is Buffer:", Buffer.isBuffer(req.rawBody));
+        console.log("   Raw body length:", req.rawBody?.length || 0);
+      },
+    })
   );
 
   // Global JSON parser for all other routes
