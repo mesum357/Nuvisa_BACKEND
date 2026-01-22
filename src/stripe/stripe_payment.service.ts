@@ -180,14 +180,43 @@ export class StripeService {
       });
       const signature = req.headers["stripe-signature"];
 
+      // Validate that we have the required data for signature verification
+      if (!signature) {
+        console.error("❌ Stripe webhook signature missing");
+        callHTTPException("Missing stripe-signature header");
+      }
+
+      if (!req.rawBody) {
+        console.error("❌ Raw body missing - this usually means the webhook route is not properly configured");
+        console.error("❌ Make sure /stripe_payment/webhook uses express.raw() middleware");
+        callHTTPException("Raw request body is required for webhook signature verification");
+      }
+
+      if (!Env.Webhook_Secret) {
+        console.error("❌ Webhook secret not configured");
+        callHTTPException("Webhook secret is not configured");
+      }
+
+      // Ensure rawBody is a Buffer (Stripe requires Buffer or string)
+      const rawBody = Buffer.isBuffer(req.rawBody) 
+        ? req.rawBody 
+        : Buffer.from(req.rawBody);
+
       let event;
       try {
         event = stripe.webhooks.constructEvent(
-          req.rawBody,
+          rawBody,
           signature,
           Env.Webhook_Secret
         );
       } catch (err) {
+        console.error("❌ Stripe webhook signature verification failed");
+        console.error("Error details:", err.message);
+        console.error("Signature present:", !!signature);
+        console.error("Raw body present:", !!req.rawBody);
+        console.error("Raw body type:", typeof req.rawBody);
+        console.error("Raw body length:", req.rawBody?.length || 0);
+        console.error("Webhook secret configured:", !!Env.Webhook_Secret);
         callHTTPException(err.message);
       }
 

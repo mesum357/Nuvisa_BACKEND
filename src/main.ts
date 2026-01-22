@@ -15,15 +15,22 @@ async function bootstrap() {
 
   const port = Env.PORT;
 
+  // IMPORTANT: Apply raw body parser to webhook route BEFORE JSON parser
+  // This ensures the raw body is preserved for Stripe signature verification
+  app.use(
+    "/stripe_payment/webhook",
+    express.raw({ type: "application/json", limit: "50mb" }),
+    (req: any, res, next) => {
+      // Store raw body for Stripe webhook signature verification
+      req.rawBody = req.body;
+      next();
+    }
+  );
+
+  // Global JSON parser for all other routes
   app.use(
     bodyParser.json({
       limit: "50mb",
-      verify: (req: any, res, buf: Buffer) => {
-        const signature = req.headers["stripe-signature"];
-        if (signature) {
-          req.rawBody = buf; // Required for Stripe signature verification
-        }
-      },
     })
   );
 
