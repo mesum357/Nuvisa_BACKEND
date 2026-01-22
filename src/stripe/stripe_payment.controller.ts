@@ -67,6 +67,20 @@ export class StripeController {
   async handleStripeWebhook(@Req() req: Request, @Res() res: Response) {
     try {
       const rawReq = req as Request & { rawBody: Buffer };
+      
+      // Double-check: if rawBody wasn't set by middleware, try to get it from req.body
+      // (express.raw() should have set req.body to a Buffer)
+      if (!rawReq.rawBody && (req as any).body) {
+        if (Buffer.isBuffer((req as any).body)) {
+          rawReq.rawBody = (req as any).body;
+          console.log("✅ Raw body captured from req.body (Buffer)");
+        } else {
+          console.error("❌ req.body is not a Buffer - middleware may not be working correctly");
+          console.error("   req.body type:", typeof (req as any).body);
+          console.error("   Is Buffer:", Buffer.isBuffer((req as any).body));
+        }
+      }
+      
       const response = await this.stripeService.handleWebhook(rawReq);
       return res.status(HttpStatus.OK).json(response);
     } catch (error) {

@@ -15,14 +15,23 @@ async function bootstrap() {
 
   const port = Env.PORT;
 
-  // IMPORTANT: Apply raw body parser to webhook route BEFORE JSON parser
-  // This ensures the raw body is preserved for Stripe signature verification
+  // CRITICAL: Apply raw body parser to webhook route BEFORE any other body parsing
+  // This MUST be first to capture the exact raw bytes before any JSON parsing
   app.use(
     "/stripe_payment/webhook",
     express.raw({ type: "application/json", limit: "50mb" }),
     (req: any, res, next) => {
-      // Store raw body for Stripe webhook signature verification
-      req.rawBody = req.body;
+      // express.raw() sets req.body to a Buffer - this is what we need
+      // Store it as rawBody for Stripe signature verification
+      if (Buffer.isBuffer(req.body)) {
+        req.rawBody = req.body;
+        // Clear req.body to prevent any JSON parsing later
+        // But keep rawBody for verification
+      } else {
+        console.error("❌ WARNING: req.body is not a Buffer after express.raw()");
+        console.error("   Type:", typeof req.body);
+        console.error("   Is Buffer:", Buffer.isBuffer(req.body));
+      }
       next();
     }
   );

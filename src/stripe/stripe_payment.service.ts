@@ -198,9 +198,23 @@ export class StripeService {
       }
 
       // Ensure rawBody is a Buffer (Stripe requires Buffer or string)
-      const rawBody = Buffer.isBuffer(req.rawBody) 
-        ? req.rawBody 
-        : Buffer.from(req.rawBody);
+      // CRITICAL: If rawBody is an object, it means JSON parsing happened before we captured it
+      // This breaks signature verification - we need the EXACT raw bytes
+      let rawBody: Buffer;
+      if (Buffer.isBuffer(req.rawBody)) {
+        rawBody = req.rawBody;
+      } else if (typeof req.rawBody === 'string') {
+        rawBody = Buffer.from(req.rawBody, 'utf8');
+      } else {
+        // If it's an object, it's already been parsed - this is a configuration error
+        console.error("❌ CRITICAL: Raw body is an object, not a Buffer!");
+        console.error("   This means JSON parsing happened before raw body capture.");
+        console.error("   The webhook route middleware must capture raw body BEFORE JSON parsing.");
+        console.error("   Raw body type:", typeof req.rawBody);
+        console.error("   Is Buffer:", Buffer.isBuffer(req.rawBody));
+        console.error("   Raw body value:", JSON.stringify(req.rawBody).substring(0, 200));
+        callHTTPException("Raw body was parsed as JSON before signature verification. Check middleware order in main.ts");
+      }
 
       let event;
       try {
