@@ -216,6 +216,17 @@ export class StripeService {
         callHTTPException("Raw body was parsed as JSON before signature verification. Check middleware order in main.ts");
       }
 
+      // Log verification details before attempting
+      console.log("🔍 Webhook verification details:");
+      console.log("   Raw body is Buffer:", Buffer.isBuffer(rawBody));
+      console.log("   Raw body length:", rawBody.length);
+      console.log("   Signature present:", !!signature);
+      const sigStr = Array.isArray(signature) ? signature[0] : signature;
+      console.log("   Signature preview:", sigStr?.substring(0, 30) + "...");
+      console.log("   Webhook secret configured:", !!Env.Webhook_Secret);
+      console.log("   Webhook secret starts with:", Env.Webhook_Secret?.substring(0, 40) || "N/A");
+      console.log("   Expected to start with: whsec_XdCftjLzGhMYoKiNBggDQSRx3U1spkKO");
+
       let event;
       try {
         event = stripe.webhooks.constructEvent(
@@ -223,14 +234,30 @@ export class StripeService {
           signature,
           Env.Webhook_Secret
         );
+        console.log("✅ Webhook signature verified successfully!");
+        console.log("   Event type:", event.type);
+        console.log("   Event ID:", event.id);
       } catch (err) {
         console.error("❌ Stripe webhook signature verification failed");
         console.error("Error details:", err.message);
+        console.error("Error type:", err.constructor.name);
         console.error("Signature present:", !!signature);
         console.error("Raw body present:", !!req.rawBody);
+        console.error("Raw body is Buffer:", Buffer.isBuffer(req.rawBody));
         console.error("Raw body type:", typeof req.rawBody);
         console.error("Raw body length:", req.rawBody?.length || 0);
         console.error("Webhook secret configured:", !!Env.Webhook_Secret);
+        console.error("Webhook secret length:", Env.Webhook_Secret?.length || 0);
+        console.error("Webhook secret starts with:", Env.Webhook_Secret?.substring(0, 40) || "N/A");
+        
+        // Check if it's a secret mismatch
+        if (err.message.includes("No signatures found")) {
+          console.error("⚠️  This usually means:");
+          console.error("   1. Webhook secret doesn't match the endpoint in Stripe Dashboard");
+          console.error("   2. A proxy/load balancer modified the request body");
+          console.error("   3. Wrong webhook secret (test vs live mode)");
+        }
+        
         callHTTPException(err.message);
       }
 
