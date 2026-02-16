@@ -19,8 +19,8 @@ export class StripeService {
     private readonly authService: AuthService,
     private readonly visaService: VisaService,
     private readonly visaApplicationService: VisaApplicationService,
-    private readonly giftCardService: GiftCardService,
-  ) {}
+    private readonly giftCardService: GiftCardService
+  ) { }
 
   async createCheckoutSession(checkoutData: checkoutSessionDto): Promise<any> {
     try {
@@ -39,12 +39,9 @@ export class StripeService {
       let authResponse = {};
 
       // Handle comma-separated payment types (e.g., "application_creation,gift_card")
-      const paymentTypes = paymentType
-        ? paymentType.split(",").map((t) => t.trim())
-        : [];
-      const hasApplicationCreation =
-        !paymentType || paymentTypes.includes("application_creation");
-
+      const paymentTypes = paymentType ? paymentType.split(',').map(t => t.trim()) : [];
+      const hasApplicationCreation = !paymentType || paymentTypes.includes("application_creation");
+      
       if (hasApplicationCreation) {
         const loginDto = {
           email: email,
@@ -52,6 +49,8 @@ export class StripeService {
         };
 
         authResponse = await this.authService.login(loginDto, "checkout");
+
+
       } else {
         authResponse = {
           message: "Using existing session for insurance payment",
@@ -75,7 +74,7 @@ export class StripeService {
               product_data: {
                 name:
                   paymentType === "additional_traveler_insurance" ||
-                  paymentType === "traveler_insurance"
+                    paymentType === "traveler_insurance"
                     ? "Travel Insurance Payment"
                     : "Custom Payment",
               },
@@ -103,17 +102,17 @@ export class StripeService {
 
       // Return appropriate response based on mode
       if (isEmbedded) {
-        return {
-          clientSecret: session.client_secret,
+        return { 
+          clientSecret: session.client_secret, 
           sessionId: session.id,
-          ...authResponse,
+          ...authResponse 
         };
       } else {
         return { url: session.url, ...authResponse };
       }
     } catch (err) {
       callHTTPException(
-        `Something went wrong while generating sessionId: ${err.message}`,
+        `Something went wrong while generating sessionId: ${err.message}`
       );
     }
   }
@@ -133,12 +132,9 @@ export class StripeService {
       let authResponse = {};
 
       // Handle comma-separated payment types (e.g., "application_creation,gift_card")
-      const paymentTypes = paymentType
-        ? paymentType.split(",").map((t) => t.trim())
-        : [];
-      const hasApplicationCreation =
-        !paymentType || paymentTypes.includes("application_creation");
-
+      const paymentTypes = paymentType ? paymentType.split(',').map(t => t.trim()) : [];
+      const hasApplicationCreation = !paymentType || paymentTypes.includes("application_creation");
+      
       if (hasApplicationCreation) {
         const loginDto = {
           email: email,
@@ -172,7 +168,7 @@ export class StripeService {
       };
     } catch (err) {
       callHTTPException(
-        `Something went wrong while creating payment intent: ${err.message}`,
+        `Something went wrong while creating payment intent: ${err.message}`
       );
     }
   }
@@ -191,15 +187,9 @@ export class StripeService {
       }
 
       if (!req.rawBody) {
-        console.error(
-          "❌ Raw body missing - this usually means the webhook route is not properly configured",
-        );
-        console.error(
-          "❌ Make sure /stripe_payment/webhook uses express.raw() middleware",
-        );
-        callHTTPException(
-          "Raw request body is required for webhook signature verification",
-        );
+        console.error("❌ Raw body missing - this usually means the webhook route is not properly configured");
+        console.error("❌ Make sure /stripe_payment/webhook uses express.raw() middleware");
+        callHTTPException("Raw request body is required for webhook signature verification");
       }
 
       if (!Env.Webhook_Secret) {
@@ -213,26 +203,17 @@ export class StripeService {
       let rawBody: Buffer;
       if (Buffer.isBuffer(req.rawBody)) {
         rawBody = req.rawBody;
-      } else if (typeof req.rawBody === "string") {
-        rawBody = Buffer.from(req.rawBody, "utf8");
+      } else if (typeof req.rawBody === 'string') {
+        rawBody = Buffer.from(req.rawBody, 'utf8');
       } else {
         // If it's an object, it's already been parsed - this is a configuration error
         console.error("❌ CRITICAL: Raw body is an object, not a Buffer!");
-        console.error(
-          "   This means JSON parsing happened before raw body capture.",
-        );
-        console.error(
-          "   The webhook route middleware must capture raw body BEFORE JSON parsing.",
-        );
+        console.error("   This means JSON parsing happened before raw body capture.");
+        console.error("   The webhook route middleware must capture raw body BEFORE JSON parsing.");
         console.error("   Raw body type:", typeof req.rawBody);
         console.error("   Is Buffer:", Buffer.isBuffer(req.rawBody));
-        console.error(
-          "   Raw body value:",
-          JSON.stringify(req.rawBody).substring(0, 200),
-        );
-        callHTTPException(
-          "Raw body was parsed as JSON before signature verification. Check middleware order in main.ts",
-        );
+        console.error("   Raw body value:", JSON.stringify(req.rawBody).substring(0, 200));
+        callHTTPException("Raw body was parsed as JSON before signature verification. Check middleware order in main.ts");
       }
 
       // Log verification details before attempting
@@ -243,20 +224,15 @@ export class StripeService {
       const sigStr = Array.isArray(signature) ? signature[0] : signature;
       console.log("   Signature preview:", sigStr?.substring(0, 30) + "...");
       console.log("   Webhook secret configured:", !!Env.Webhook_Secret);
-      console.log(
-        "   Webhook secret starts with:",
-        Env.Webhook_Secret?.substring(0, 40) || "N/A",
-      );
-      console.log(
-        "   Expected to start with: whsec_XdCftjLzGhMYoKiNBggDQSRx3U1spkKO",
-      );
+      console.log("   Webhook secret starts with:", Env.Webhook_Secret?.substring(0, 40) || "N/A");
+      console.log("   Expected to start with: whsec_XdCftjLzGhMYoKiNBggDQSRx3U1spkKO");
 
       let event;
       try {
         event = stripe.webhooks.constructEvent(
           rawBody,
           signature,
-          Env.Webhook_Secret,
+          Env.Webhook_Secret
         );
         console.log("✅ Webhook signature verified successfully!");
         console.log("   Event type:", event.type);
@@ -271,27 +247,17 @@ export class StripeService {
         console.error("Raw body type:", typeof req.rawBody);
         console.error("Raw body length:", req.rawBody?.length || 0);
         console.error("Webhook secret configured:", !!Env.Webhook_Secret);
-        console.error(
-          "Webhook secret length:",
-          Env.Webhook_Secret?.length || 0,
-        );
-        console.error(
-          "Webhook secret starts with:",
-          Env.Webhook_Secret?.substring(0, 40) || "N/A",
-        );
-
+        console.error("Webhook secret length:", Env.Webhook_Secret?.length || 0);
+        console.error("Webhook secret starts with:", Env.Webhook_Secret?.substring(0, 40) || "N/A");
+        
         // Check if it's a secret mismatch
         if (err.message.includes("No signatures found")) {
           console.error("⚠️  This usually means:");
-          console.error(
-            "   1. Webhook secret doesn't match the endpoint in Stripe Dashboard",
-          );
-          console.error(
-            "   2. A proxy/load balancer modified the request body",
-          );
+          console.error("   1. Webhook secret doesn't match the endpoint in Stripe Dashboard");
+          console.error("   2. A proxy/load balancer modified the request body");
           console.error("   3. Wrong webhook secret (test vs live mode)");
         }
-
+        
         callHTTPException(err.message);
       }
 
@@ -316,29 +282,10 @@ export class StripeService {
         case "payment_intent.succeeded":
           // Handle payment intent success (for createPaymentIntent flow)
           const paymentIntent = event["data"]["object"];
-          console.log(
-            "🔍 Payment Intent Webhook - Full object:",
-            JSON.stringify(paymentIntent, null, 2),
-          );
-          console.log(
-            "🔍 Payment Intent Webhook - Metadata:",
-            JSON.stringify(paymentIntent.metadata || {}, null, 2),
-          );
-          console.log(
-            "🔍 Payment Intent Webhook - Receipt Email:",
-            paymentIntent.receipt_email,
-          );
-
-          // 🚫 If this PaymentIntent came from Checkout Session,
-          // skip it because checkout.session.completed will handle it
-          if (
-            paymentIntent?.invoice ||
-            paymentIntent.metadata?.uiMode === "hosted"
-          ) {
-            console.log("⚠️ Skipping payment_intent.succeeded from Checkout");
-            break;
-          }
-
+          console.log("🔍 Payment Intent Webhook - Full object:", JSON.stringify(paymentIntent, null, 2));
+          console.log("🔍 Payment Intent Webhook - Metadata:", JSON.stringify(paymentIntent.metadata || {}, null, 2));
+          console.log("🔍 Payment Intent Webhook - Receipt Email:", paymentIntent.receipt_email);
+          
           // Convert payment intent structure to match checkout session structure
           // Ensure email is in metadata, fallback to receipt_email if not
           const metadata = paymentIntent.metadata || {};
@@ -349,7 +296,7 @@ export class StripeService {
           if (!metadata.amount && paymentIntent.amount) {
             metadata.amount = (paymentIntent.amount / 100).toString();
           }
-
+          
           const paymentIntentData = {
             id: paymentIntent.id,
             payment_intent: paymentIntent.id,
@@ -360,11 +307,8 @@ export class StripeService {
               email: paymentIntent.receipt_email || metadata.email,
             },
           };
-
-          console.log(
-            "🔍 Payment Intent Data for handlePaymentSuccess:",
-            JSON.stringify(paymentIntentData, null, 2),
-          );
+          
+          console.log("🔍 Payment Intent Data for handlePaymentSuccess:", JSON.stringify(paymentIntentData, null, 2));
           await this.handlePaymentSuccess(paymentIntentData);
           break;
 
@@ -389,38 +333,23 @@ export class StripeService {
       // Parse comma-separated payment types (e.g., "application_creation,gift_card")
       const paymentType = data.metadata?.paymentType || "";
       console.log("🔍 Payment success handler - paymentType:", paymentType);
-      console.log(
-        "🔍 Payment success handler - metadata:",
-        JSON.stringify(data.metadata || {}),
-      );
-
-      const paymentTypes = paymentType
-        .split(",")
-        .map((t) => t.trim())
-        .filter((t) => t);
+      console.log("🔍 Payment success handler - metadata:", JSON.stringify(data.metadata || {}));
+      
+      const paymentTypes = paymentType.split(',').map(t => t.trim()).filter(t => t);
       const hasGiftCard = paymentTypes.includes("gift_card");
-      const hasApplicationCreation = paymentTypes.includes(
-        "application_creation",
-      );
-      const hasInsurance =
-        paymentTypes.includes("additional_traveler_insurance") ||
-        paymentTypes.includes("traveler_insurance");
-
-      console.log("🔍 Parsed payment types:", {
-        paymentTypes,
-        hasGiftCard,
-        hasApplicationCreation,
-        hasInsurance,
-      });
+      const hasApplicationCreation = paymentTypes.includes("application_creation");
+      const hasInsurance = paymentTypes.includes("additional_traveler_insurance") || 
+                          paymentTypes.includes("traveler_insurance");
+      
+      console.log("🔍 Parsed payment types:", { paymentTypes, hasGiftCard, hasApplicationCreation, hasInsurance });
 
       // Handle gift card purchases (can be combined with other payment types)
       if (hasGiftCard) {
-        console.log("✅ Gift card payment detected");
+        console.log('✅ Gift card payment detected');
         // Try to get email from multiple sources
-        const email =
-          data.metadata?.email ||
-          data.customer_details?.email ||
-          (data.amount_total ? null : null); // Will check receipt_email in payment intent
+        const email = data.metadata?.email || 
+                     data.customer_details?.email || 
+                     (data.amount_total ? null : null); // Will check receipt_email in payment intent
         // Try to get amount from multiple sources
         let amount = data.metadata?.amount;
         if (!amount && data.amount_total) {
@@ -428,28 +357,23 @@ export class StripeService {
           amount = (data.amount_total / 100).toString();
         }
         // Get quantity from metadata (default to 1 if not provided)
-        const quantity = data.metadata?.quantity
-          ? parseInt(data.metadata.quantity, 10)
-          : data.metadata?.noOfGiftCards
-            ? parseInt(data.metadata.noOfGiftCards, 10)
-            : 1;
+        const quantity = data.metadata?.quantity 
+          ? parseInt(data.metadata.quantity, 10) 
+          : (data.metadata?.noOfGiftCards ? parseInt(data.metadata.noOfGiftCards, 10) : 1);
         const stripeSessionId = data.id || null;
         const stripePaymentIntentId = data.payment_intent || data.id || null;
-
-        console.log("🎁 Gift Card Details:");
-        console.log("   📧 Email (metadata):", data.metadata?.email);
-        console.log(
-          "   📧 Email (customer_details):",
-          data.customer_details?.email,
-        );
-        console.log("   📧 Email (final):", email);
-        console.log("   💰 Amount (metadata):", data.metadata?.amount);
-        console.log("   💰 Amount (amount_total):", data.amount_total);
-        console.log("   💰 Amount (final):", amount);
-        console.log("   📦 Quantity:", quantity);
-        console.log("   🏷️  Payment Type:", paymentType);
-        console.log("   🔑 Stripe Session ID:", stripeSessionId);
-        console.log("   💳 Stripe Payment Intent ID:", stripePaymentIntentId);
+        
+        console.log('🎁 Gift Card Details:');
+        console.log('   📧 Email (metadata):', data.metadata?.email);
+        console.log('   📧 Email (customer_details):', data.customer_details?.email);
+        console.log('   📧 Email (final):', email);
+        console.log('   💰 Amount (metadata):', data.metadata?.amount);
+        console.log('   💰 Amount (amount_total):', data.amount_total);
+        console.log('   💰 Amount (final):', amount);
+        console.log('   📦 Quantity:', quantity);
+        console.log('   🏷️  Payment Type:', paymentType);
+        console.log('   🔑 Stripe Session ID:', stripeSessionId);
+        console.log('   💳 Stripe Payment Intent ID:', stripePaymentIntentId);
 
         if (!email || !amount) {
           console.error("❌ GIFT CARD PAYMENT METADATA INCOMPLETE");
@@ -471,9 +395,7 @@ export class StripeService {
               stripe_session_id: stripeSessionId,
               stripe_payment_intent_id: stripePaymentIntentId,
             });
-            console.log(
-              `✓ Gift card created with quantity ${quantity} and email sent successfully`,
-            );
+            console.log(`✓ Gift card created with quantity ${quantity} and email sent successfully`);
           } catch (error) {
             console.error("❌ Error creating gift card:", error);
             console.error("❌ Gift card creation error details:", {
@@ -485,7 +407,7 @@ export class StripeService {
             // Don't throw - allow payment to complete even if gift card creation fails
           }
         }
-
+        
         // If gift card is the only payment type, return early
         if (!hasApplicationCreation && !hasInsurance) {
           return;
@@ -496,28 +418,22 @@ export class StripeService {
       if (hasInsurance) {
         const applicationId = data.metadata.applicationId;
         const paymentAmount = Number(
-          data.metadata.amountGBP ?? data.metadata.amount,
+          data.metadata.amountGBP ?? data.metadata.amount
         );
         const paymentType = data.metadata.paymentType;
         const orderId = data.metadata.orderId;
         const email = data.metadata.email;
 
         const applicationIdValid = !!applicationId;
-        const paymentAmountValid =
-          Number.isFinite(paymentAmount) && paymentAmount > 0;
+        const paymentAmountValid = Number.isFinite(paymentAmount) && paymentAmount > 0;
         const paymentTypeValid = !!paymentType;
         const orderIdValid = !!orderId;
         const emailValid = !!email;
 
         // If travelerIndex is provided, validate and handle single-traveler insurance
-        if (
-          data.metadata.travelerIndex !== undefined &&
-          data.metadata.travelerIndex !== null &&
-          data.metadata.travelerIndex !== ""
-        ) {
+        if (data.metadata.travelerIndex !== undefined && data.metadata.travelerIndex !== null && data.metadata.travelerIndex !== "") {
           const travelerIndex = parseInt(data.metadata.travelerIndex);
-          const travelerIndexValid =
-            !isNaN(travelerIndex) && travelerIndex >= 0;
+          const travelerIndexValid = !isNaN(travelerIndex) && travelerIndex >= 0;
 
           if (
             !travelerIndexValid ||
@@ -529,31 +445,23 @@ export class StripeService {
           ) {
             console.error("❌ INSURANCE PAYMENT METADATA INCOMPLETE");
             console.error("Missing/invalid required metadata:", {
-              travelerIndex: travelerIndexValid
-                ? travelerIndex
-                : data.metadata.travelerIndex,
+              travelerIndex: travelerIndexValid ? travelerIndex : data.metadata.travelerIndex,
               travelerIndexValid,
               applicationId: applicationIdValid,
-              paymentAmount: paymentAmountValid
-                ? paymentAmount
-                : data.metadata.amount,
+              paymentAmount: paymentAmountValid ? paymentAmount : data.metadata.amount,
               paymentAmountValid,
               paymentType: paymentTypeValid,
               orderId: orderIdValid,
               email: emailValid,
             });
-            console.error(
-              "NOT processing insurance payment - missing or invalid required data",
-            );
+            console.error("NOT processing insurance payment - missing or invalid required data");
 
             return;
           }
 
           const application = await VisaApplication.findByPk(applicationId);
           if (!application) {
-            console.error(
-              "Application not found for insurance payment validation",
-            );
+            console.error("Application not found for insurance payment validation");
             callHTTPException("Application not found");
           }
 
@@ -568,25 +476,15 @@ export class StripeService {
             callHTTPException("Traveler not found");
           }
 
-          const expectedInsuranceCost = this.calculateInsuranceCost(
-            currentTraveler,
-            application,
-          );
+          const expectedInsuranceCost = this.calculateInsuranceCost(currentTraveler, application);
           const expectedTotalWithFee = expectedInsuranceCost;
 
-          const paymentValid =
-            Math.abs(paymentAmount - expectedTotalWithFee) <= 1;
+          const paymentValid = Math.abs(paymentAmount - expectedTotalWithFee) <= 1;
 
           if (!paymentValid) {
-            console.error(
-              `❌ INSURANCE PAYMENT AMOUNT MISMATCH: Expected £${expectedTotalWithFee}, received £${paymentAmount}`,
-            );
-            console.error(
-              "This appears to be a travel-only payment, not insurance payment",
-            );
-            console.error(
-              "NOT marking insurance as paid to prevent incorrect status",
-            );
+            console.error(`❌ INSURANCE PAYMENT AMOUNT MISMATCH: Expected £${expectedTotalWithFee}, received £${paymentAmount}`);
+            console.error("This appears to be a travel-only payment, not insurance payment");
+            console.error("NOT marking insurance as paid to prevent incorrect status");
 
             return;
           }
@@ -604,24 +502,14 @@ export class StripeService {
           });
         } else {
           // No travelerIndex provided => application-level insurance payment (covers all travelers)
-          if (
-            !applicationIdValid ||
-            !paymentAmountValid ||
-            !paymentTypeValid ||
-            !orderIdValid ||
-            !emailValid
-          ) {
-            console.error(
-              "❌ APPLICATION-LEVEL INSURANCE PAYMENT METADATA INCOMPLETE",
-            );
+          if (!applicationIdValid || !paymentAmountValid || !paymentTypeValid || !orderIdValid || !emailValid) {
+            console.error("❌ APPLICATION-LEVEL INSURANCE PAYMENT METADATA INCOMPLETE");
             return;
           }
 
           const application = await VisaApplication.findByPk(applicationId);
           if (!application) {
-            console.error(
-              "Application not found for application-level insurance payment",
-            );
+            console.error("Application not found for application-level insurance payment");
             callHTTPException("Application not found");
           }
 
@@ -638,9 +526,7 @@ export class StripeService {
 
           const paymentValid = Math.abs(paymentAmount - expectedTotal) <= 1;
           if (!paymentValid) {
-            console.error(
-              `❌ APPLICATION-LEVEL INSURANCE PAYMENT AMOUNT MISMATCH: Expected £${expectedTotal}, received £${paymentAmount}`,
-            );
+            console.error(`❌ APPLICATION-LEVEL INSURANCE PAYMENT AMOUNT MISMATCH: Expected £${expectedTotal}, received £${paymentAmount}`);
             return;
           }
 
@@ -675,7 +561,7 @@ export class StripeService {
 
   private calculateInsuranceCost(
     travelerData: any,
-    _application: VisaApplication,
+    _application: VisaApplication
   ): number {
     const travelStartDate = travelerData?.basicDetails?.travelStartDate;
     const travelEndDate = travelerData?.basicDetails?.travelEndDate;
