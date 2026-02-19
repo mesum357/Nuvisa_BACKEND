@@ -641,8 +641,8 @@ export class StripeService {
         });
         
         // Store payment identifiers in stepData for idempotency
-        if (application && application.id) {
-          const updatedApplication = await VisaApplication.findByPk(application.id);
+        if (application && application.application.id) {
+          const updatedApplication = await VisaApplication.findByPk(application.application.id);
           if (updatedApplication) {
             const stepData = updatedApplication.stepData || {};
             if (paymentIntentId) {
