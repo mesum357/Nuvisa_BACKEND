@@ -567,6 +567,7 @@ export class StripeService {
             return;
           }
         }
+        return;
 
         console.log("✅ No duplicate found, webhook creating application for stripePaymentId:", stripePaymentId);
 
