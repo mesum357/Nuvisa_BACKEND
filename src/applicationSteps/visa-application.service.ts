@@ -397,6 +397,19 @@ export class VisaApplicationService {
       let application;
 
       if (dto.type === VisaApplicationStepType.CREATE_APPLICATION) {
+        // Idempotency guard: if an application with this stripePaymentId already exists
+        // (e.g. the Stripe webhook already created it), return that application instead of
+        // inserting a duplicate and hitting the unique constraint.
+        if (dto.stripePaymentId) {
+          const existing = await VisaApplication.findOne({
+            where: { stripePaymentId: dto.stripePaymentId },
+          });
+          if (existing) {
+            console.log(`[createOrUpdateApplication] Returning existing application for stripePaymentId=${dto.stripePaymentId}, id=${existing.id}`);
+            return { application: existing };
+          }
+        }
+
         let processedTravelersData = dto.travelersData;
 
         if (!processedTravelersData) {
@@ -534,6 +547,7 @@ export class VisaApplicationService {
           visaTypeId: dto.visaTypeId,
           selectedVisaType: dto.selectedVisaType, // Store complete selected visa type object
           orderId: dto.orderId, // Store SMV Konveyor order ID
+          stripePaymentId: dto.stripePaymentId || null, // Idempotency key — unique per payment
           amountPaid: dto.amountPaid,
           amountPaidTotal: dto.amountPaidTotal || dto.amountPaid, // Total amount paid for all travelers
           paymentWithoutInsurance: String(dto.paymentWithoutInsurance || 0),

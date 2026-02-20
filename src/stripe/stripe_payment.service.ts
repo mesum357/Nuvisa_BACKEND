@@ -5,7 +5,6 @@ import { Env } from "../shared/config";
 import { VisaApplication } from "src/applicationSteps/visa-application.entity";
 import { VisaApplicationService } from "src/applicationSteps/visa-application.service";
 import { VisaApplicationStepType } from "src/applicationSteps/dto/visa-application.dto";
-import { Op } from "sequelize";
 
 const { Stripe } = require("stripe");
 import { Request } from "express";
@@ -545,117 +544,42 @@ export class StripeService {
         }
       } else if (hasApplicationCreation) {
         // Handle application creation (can be combined with gift card)
-        // Get payment identifiers for idempotency check
-        const paymentIntentId = data.payment_intent || data.id || null;
-        const sessionId = data.id || null;
         const email = data.metadata?.email || data.customer_details?.email;
         const visaTypeId = data.metadata?.visaTypeId;
         const amountPaid = data.metadata?.amount;
-        
-        console.log("🔍 Checking for duplicate application creation:");
-        console.log("   Payment Intent ID:", paymentIntentId);
-        console.log("   Session ID:", sessionId);
-        console.log("   Email:", email);
-        console.log("   Visa Type ID:", visaTypeId);
-        console.log("   Amount:", amountPaid);
-        
-        // Check if application already exists for this payment
-        // First, check by payment intent/session ID in stepData
-        let existingApplication = null;
-        
-        if (paymentIntentId || sessionId) {
-          const paymentId = paymentIntentId || sessionId;
-          // Search for applications with this payment ID in stepData
-          const allApplications = await VisaApplication.findAll({
-            where: {
-              email: email,
-            },
-            order: [['createdAt', 'DESC']],
-            limit: 10, // Check recent applications
+
+        // Canonical idempotency key: always use data.id
+        // - checkout.session.completed  → data.id = "cs_xxx"  (frontend also stores "cs_xxx" from URL)
+        // - payment_intent.succeeded    → data.id = "pi_xxx"  (frontend also stores "pi_xxx" from sessionStorage)
+        // Using data.payment_intent would pick "pi_xxx" for checkout sessions, mismatching the frontend's "cs_xxx"
+        const stripePaymentId = data.id || null;
+
+        console.log("🔍 Webhook: checking for duplicate via stripePaymentId column:", stripePaymentId);
+
+        // Fast, reliable duplicate check: look up the dedicated column directly.
+        // Catches BOTH webhook re-deliveries AND apps already created by the frontend.
+        if (stripePaymentId) {
+          const existingApplication = await VisaApplication.findOne({
+            where: { stripePaymentId },
           });
-          
-          for (const app of allApplications) {
-            if (app.stepData && typeof app.stepData === 'object') {
-              const stepData = app.stepData;
-              if (stepData.paymentIntentId === paymentId || stepData.sessionId === sessionId) {
-                existingApplication = app;
-                console.log("✅ Found existing application with payment ID:", app.id);
-                break;
-              }
-            }
+          if (existingApplication) {
+            console.log("✅ Duplicate prevented — stripePaymentId already in DB:", stripePaymentId, "applicationId:", existingApplication.id);
+            return;
           }
         }
-        
-        // If not found by payment ID, check for duplicate by email + visaTypeId + amount within last 5 minutes
-        if (!existingApplication && email && visaTypeId && amountPaid) {
-          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-          const amountValue = parseFloat(amountPaid);
-          
-          const recentApplications = await VisaApplication.findAll({
-            where: {
-              email: email,
-              visaTypeId: visaTypeId,
-              createdAt: {
-                [Op.gte]: fiveMinutesAgo,
-              },
-            },
-            order: [['createdAt', 'DESC']],
-            limit: 5,
-          });
-          
-          // Check if any recent application has similar amount (within 1% tolerance)
-          for (const app of recentApplications) {
-            const appAmount = parseFloat(app.amountPaid || '0');
-            const amountDiff = Math.abs(appAmount - amountValue);
-            const tolerance = amountValue * 0.01; // 1% tolerance
-            
-            if (amountDiff <= tolerance || amountDiff <= 1) {
-              existingApplication = app;
-              console.log("✅ Found existing application with similar details:", app.id);
-              console.log("   Existing amount:", appAmount, "New amount:", amountValue, "Diff:", amountDiff);
-              break;
-            }
-          }
-        }
-        
-        if (existingApplication) {
-          console.log("⚠️  Duplicate application creation prevented:");
-          console.log("   Existing Application ID:", existingApplication.id);
-          console.log("   Created at:", existingApplication.createdAt);
-          console.log("   Payment Intent/Session ID already processed");
-          console.log("   Skipping application creation to prevent duplicate");
-          return; // Exit early to prevent duplicate creation
-        }
-        
-        console.log("✅ No duplicate found, proceeding with application creation");
-        
-        // Create application and store payment ID in stepData for future idempotency checks
-        const application = await this.visaApplicationService.createOrUpdateApplication({
+
+        console.log("✅ No duplicate found, webhook creating application for stripePaymentId:", stripePaymentId);
+
+        await this.visaApplicationService.createOrUpdateApplication({
           type: VisaApplicationStepType.CREATE_APPLICATION,
           email: email,
           insurance: data.metadata.insurance,
           numberOfTravellers: data.metadata.travellers,
           amountPaid: amountPaid,
-          country: data.metadata.country || null, // Country is optional - may be collected by Stripe
+          country: data.metadata.country || null,
           visaTypeId: visaTypeId,
+          stripePaymentId: stripePaymentId || undefined,
         });
-        
-        // Store payment identifiers in stepData for idempotency
-        if (application && application.application.id) {
-          const updatedApplication = await VisaApplication.findByPk(application.application.id);
-          if (updatedApplication) {
-            const stepData = updatedApplication.stepData || {};
-            if (paymentIntentId) {
-              stepData.paymentIntentId = paymentIntentId;
-            }
-            if (sessionId) {
-              stepData.sessionId = sessionId;
-            }
-            stepData.paymentProcessedAt = new Date().toISOString();
-            await updatedApplication.update({ stepData });
-            console.log("✅ Payment ID stored in application stepData for idempotency");
-          }
-        }
       }
     } catch (err) {
       callHTTPException(err.message);

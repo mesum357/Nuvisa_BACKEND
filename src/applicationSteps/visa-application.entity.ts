@@ -54,6 +54,10 @@ export class VisaApplication extends Model<VisaApplication> {
   orderId: string; // SMV Konveyor order ID from /orders endpoint
 
   @AllowNull(true)
+  @Column({ type: DataType.STRING, unique: true })
+  stripePaymentId: string; // Stripe session_id (hosted) or payment_intent_id (embedded) — used as idempotency key
+
+  @AllowNull(true)
   @Column({ type: DataType.STRING })
   amountPaid: string;
 

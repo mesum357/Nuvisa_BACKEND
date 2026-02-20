@@ -444,6 +444,10 @@ export class VisaApplicationDto {
 
   @IsOptional()
   @IsString()
+  stripePaymentId?: string;
+
+  @IsOptional()
+  @IsString()
   amountPaid?: string;
 
   @IsOptional()
