@@ -117,6 +117,30 @@ export class StripeService {
     }
   }
 
+  /**
+   * Retrieve metadata from a Stripe Checkout Session or Payment Intent.
+   * Used by payment-success page to get country, travelers, etc. when localStorage is empty after redirect.
+   */
+  async getSessionOrPaymentIntentMetadata(paymentId: string): Promise<Record<string, string> | null> {
+    if (!paymentId || typeof paymentId !== "string") return null;
+    try {
+      const stripe = Stripe(Env.stripeSecretKey);
+      const id = paymentId.trim();
+      if (id.startsWith("cs_")) {
+        const session = await stripe.checkout.sessions.retrieve(id, { expand: [] });
+        return (session.metadata as Record<string, string>) || null;
+      }
+      if (id.startsWith("pi_")) {
+        const paymentIntent = await stripe.paymentIntents.retrieve(id);
+        return (paymentIntent.metadata as Record<string, string>) || null;
+      }
+      return null;
+    } catch (err) {
+      console.warn("getSessionOrPaymentIntentMetadata failed:", err?.message);
+      return null;
+    }
+  }
+
   async createPaymentIntent(checkoutData: checkoutSessionDto): Promise<any> {
     try {
       const stripe = Stripe(Env.stripeSecretKey);

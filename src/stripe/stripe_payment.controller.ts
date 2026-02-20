@@ -1,10 +1,11 @@
 import {
   Controller,
   Post,
+  Get,
   Req,
   Res,
   Body,
-  Headers,
+  Query,
   UsePipes,
   ValidationPipe,
   UseGuards,
@@ -42,6 +43,21 @@ export class StripeController {
       );
     } catch (error) {
       callHTTPException(error.message);
+    }
+  }
+
+  @Get("session-metadata")
+  async getSessionMetadata(@Query("payment_id") paymentId: string): Promise<any> {
+    try {
+      const metadata =
+        await this.stripeService.getSessionOrPaymentIntentMetadata(paymentId);
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        { metadata: metadata || {} },
+        "Session metadata retrieved"
+      );
+    } catch (error) {
+      callHTTPException(error?.message || "Failed to get session metadata");
     }
   }
 
