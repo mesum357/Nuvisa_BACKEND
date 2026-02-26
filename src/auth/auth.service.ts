@@ -262,8 +262,7 @@ export class AuthService {
             template
           );
           
-          // Prepend OTP code to subject for OTP emails
-          const finalSubject = emailType === "otp_email" ? `${otp} ${subject}` : subject;
+          const finalSubject = emailType === "otp_email" ? `Your NUvisa OTP code is ${otp}` : subject;
           
           const footerContent = await this.getEmailFooterContent();
           
@@ -280,8 +279,7 @@ export class AuthService {
           // Fallback to static templates
           const { subject, emailBody } = await renderTemplate(emailType, dynamicData);
           
-          // Prepend OTP code to subject for OTP emails
-          const finalSubject = emailType === "otp_email" ? `${otp} ${subject}` : subject;
+          const finalSubject = emailType === "otp_email" ? `Your NUvisa OTP code is ${otp}` : subject;
           
           const footerContent = await this.getEmailFooterContent();
           await sendEmail(
@@ -298,8 +296,7 @@ export class AuthService {
         // Fallback to static templates
         const { subject, emailBody } = await renderTemplate(emailType, dynamicData);
         
-        // Prepend OTP code to subject for OTP emails
-        const finalSubject = emailType === "otp_email" ? `${otp} ${subject}` : subject;
+        const finalSubject = emailType === "otp_email" ? `Your NUvisa OTP code is ${otp}` : subject;
         
         const footerContent = await this.getEmailFooterContent();
         await sendEmail(

@@ -3,6 +3,27 @@ import { transporter } from "./nodeMailer";
 import { emailTemplates } from "../../email_templates";
 import { Env } from "../config";
 
+const htmlToPlainText = (html: string): string => {
+  if (!html) return "";
+
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<li>/gi, "• ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
+
 export async function sendEmail(emailMeta, footerContent?: any) {
   try {
     const { emailAddress, subject, body, excludeDecorativeImage, inlineImages } = emailMeta;
@@ -51,19 +72,30 @@ export async function sendEmail(emailMeta, footerContent?: any) {
     }
 
     const emailTemplate = getEmailTemplateHeaderFooter(body, footerContent, excludeDecorativeImage);
+    const fromEmail = Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk";
+    const plainTextBody = htmlToPlainText(body || "");
+    const plainTextFooter = htmlToPlainText((footerContent?.companyInfo || [])
+      .map((info) => `${info}`)
+      .join("\n"));
+    const textContent = [plainTextBody, plainTextFooter].filter(Boolean).join("\n\n");
 
     const mailOptions: any = {
       from: {
         name: 'NUvisa Support',
-        address: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk"
+        address: fromEmail
       },
       replyTo: {
         name: 'NUvisa Support',
-        address: Env.MAILER_FROM_EMAIL || "support@nuvisa.co.uk"
+        address: fromEmail
       },
       to: emailAddress,
       subject: subject,
       html: emailTemplate,
+      text: textContent,
+      headers: {
+        "X-Auto-Response-Suppress": "OOF, DR, RN, NRN, AutoReply",
+        "List-Unsubscribe": `<mailto:${fromEmail}?subject=unsubscribe>`,
+      },
     };
 
     // Attach any inline images provided by callers (e.g., gift card artwork)
