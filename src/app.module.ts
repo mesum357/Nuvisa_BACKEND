@@ -20,6 +20,7 @@ import { UploadModule } from "./upload/upload.module";
 import { GiftCardModule } from "./gift-card/gift-card.module";
 import { EmailTemplate } from "./email-templates/email-template.entity";
 import { EmailLog } from "./email-logs/email-log.entity";
+import { VisaPricingModule } from "./visa-pricing/visa-pricing.module";
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { EmailLog } from "./email-logs/email-log.entity";
     AdminModule,
     UploadModule,
     GiftCardModule,
+    VisaPricingModule,
   ],
   controllers: [AppController],
   providers: [
