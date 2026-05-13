@@ -2,10 +2,21 @@ import {
   IsString,
   IsOptional,
   IsNotEmpty,
-  IsBoolean,
-  IsNumber,
+  IsArray,
 } from "class-validator";
+import { Transform } from "class-transformer";
 import "reflect-metadata";
+
+/** Accept JSON array or comma-separated string from clients. */
+function toOptionalStringArray({ value }: { value: unknown }): string[] | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter((s) => s.length > 0);
+  if (typeof value === "string") {
+    const parts = value.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+    return parts.length ? parts : undefined;
+  }
+  return undefined;
+}
 
 export class checkoutSessionDto {
   @IsNotEmpty()
@@ -61,4 +72,21 @@ export class checkoutSessionDto {
   @IsOptional()
   @IsString()
   uiMode?: string; // 'hosted' or 'embedded'
+
+  /** e.g. "klarna" when user chose Klarna on the frontend */
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @Transform(toOptionalStringArray)
+  @IsArray()
+  @IsString({ each: true })
+  payment_method_types?: string[];
+
+  @IsOptional()
+  @Transform(toOptionalStringArray)
+  @IsArray()
+  @IsString({ each: true })
+  stripePaymentMethodTypes?: string[];
 }
