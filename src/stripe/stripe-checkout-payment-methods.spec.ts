@@ -1,4 +1,7 @@
-import { resolveStripeCheckoutPaymentMethodTypes } from "./stripe-checkout-payment-methods";
+import {
+  resolveStripeCheckoutPaymentMethodTypes,
+  resolveCheckoutSessionCurrency,
+} from "./stripe-checkout-payment-methods";
 
 describe("resolveStripeCheckoutPaymentMethodTypes", () => {
   it("includes klarna when paymentMethod is klarna (case / spacing)", () => {
@@ -49,5 +52,35 @@ describe("resolveStripeCheckoutPaymentMethodTypes", () => {
         payment_method_types: "card,klarna" as unknown as string[],
       })
     ).toEqual(["klarna"]);
+  });
+});
+
+describe("resolveCheckoutSessionCurrency", () => {
+  it("defaults Klarna + UK country to gbp when currency omitted", () => {
+    expect(
+      resolveCheckoutSessionCurrency({
+        paymentMethod: "klarna",
+        country: "GB",
+      })
+    ).toBe("gbp");
+  });
+
+  it("respects explicit currency over UK Klarna", () => {
+    expect(
+      resolveCheckoutSessionCurrency({
+        paymentMethod: "klarna",
+        country: "GB",
+        currency: "EUR",
+      })
+    ).toBe("eur");
+  });
+
+  it("defaults to eur when currency omitted and not UK Klarna", () => {
+    expect(
+      resolveCheckoutSessionCurrency({
+        paymentMethod: "klarna",
+        country: "DE",
+      })
+    ).toBe("eur");
   });
 });

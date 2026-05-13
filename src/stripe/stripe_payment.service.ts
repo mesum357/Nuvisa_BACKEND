@@ -12,7 +12,10 @@ import { Request } from "express";
 import { AuthService } from "src/auth/auth.service";
 import { VisaService } from "src/visaApis/visaApi.service";
 import { GiftCardService } from "src/gift-card/gift-card.service";
-import { resolveStripeCheckoutPaymentMethodTypes } from "./stripe-checkout-payment-methods";
+import {
+  resolveStripeCheckoutPaymentMethodTypes,
+  resolveCheckoutSessionCurrency,
+} from "./stripe-checkout-payment-methods";
 
 /** Stripe session metadata values must be strings; arrays (e.g. payment_method_types) must be flattened. */
 function metadataForStripeCheckoutSession(
@@ -51,9 +54,7 @@ export class StripeService {
 
       let { email, amount, successUrl, cancelUrl, paymentType } = checkoutData;
 
-      const currency = (checkoutData.currency || "EUR")
-        .toString()
-        .toLowerCase();
+      const currency = resolveCheckoutSessionCurrency(checkoutData);
 
       const amountInCents = Math.round(Number(amount) * 100);
 
@@ -93,7 +94,9 @@ export class StripeService {
       if (process.env.NODE_ENV === "development") {
         console.log(
           "[stripe] checkout.sessions.create payment_method_types:",
-          payment_method_types
+          payment_method_types,
+          "currency:",
+          currency
         );
       }
 
@@ -119,6 +122,11 @@ export class StripeService {
         mode: "payment",
         metadata: metadataForStripeCheckoutSession(checkoutData),
       };
+
+      // Klarna BNPL (e.g. UK Pay in 3) often needs a billing address for eligibility; card-only sessions unchanged.
+      if (payment_method_types.includes("klarna")) {
+        sessionConfig.billing_address_collection = "required";
+      }
 
       // Configure for embedded or hosted checkout
       if (isEmbedded) {
