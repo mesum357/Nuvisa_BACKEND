@@ -12,6 +12,29 @@ import { Request } from "express";
 import { AuthService } from "src/auth/auth.service";
 import { VisaService } from "src/visaApis/visaApi.service";
 import { GiftCardService } from "src/gift-card/gift-card.service";
+import { resolveStripeCheckoutPaymentMethodTypes } from "./stripe-checkout-payment-methods";
+
+/** Stripe session metadata values must be strings; arrays (e.g. payment_method_types) must be flattened. */
+function metadataForStripeCheckoutSession(
+  dto: checkoutSessionDto
+): Record<string, string> {
+  const src = dto as unknown as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const key of Object.keys(src)) {
+    const value = src[key];
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      out[key] = value.map((v) => String(v)).join(",");
+      continue;
+    }
+    if (typeof value === "object") {
+      out[key] = JSON.stringify(value);
+      continue;
+    }
+    out[key] = String(value);
+  }
+  return out;
+}
 
 @Injectable()
 export class StripeService {
@@ -64,8 +87,18 @@ export class StripeService {
       // Check if embedded mode is requested
       const isEmbedded = checkoutData.uiMode === "embedded";
 
+      // Stripe Checkout only surfaces methods listed here; Klarna requires explicit "klarna".
+      const payment_method_types =
+        resolveStripeCheckoutPaymentMethodTypes(checkoutData);
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          "[stripe] checkout.sessions.create payment_method_types:",
+          payment_method_types
+        );
+      }
+
       const sessionConfig: any = {
-        payment_method_types: ["card"],
+        payment_method_types,
         ...customerEmail,
         line_items: [
           {
@@ -84,9 +117,7 @@ export class StripeService {
           },
         ],
         mode: "payment",
-        metadata: {
-          ...checkoutData,
-        },
+        metadata: metadataForStripeCheckoutSession(checkoutData),
       };
 
       // Configure for embedded or hosted checkout
