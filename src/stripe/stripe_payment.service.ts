@@ -13,6 +13,7 @@ import { AuthService } from "src/auth/auth.service";
 import { VisaService } from "src/visaApis/visaApi.service";
 import { GiftCardService } from "src/gift-card/gift-card.service";
 import {
+  isKlarnaCheckoutRequested,
   resolveStripeCheckoutPaymentMethodTypes,
   resolveCheckoutSessionCurrency,
 } from "./stripe-checkout-payment-methods";
@@ -37,6 +38,114 @@ function metadataForStripeCheckoutSession(
     out[key] = String(value);
   }
   return out;
+}
+
+function firstNonEmptyString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (value === undefined || value === null) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return undefined;
+}
+
+function normalizeBillingCountry(country: unknown): string | undefined {
+  const text = firstNonEmptyString(country);
+  if (!text) return undefined;
+
+  const upper = text.toUpperCase();
+  if (upper === "UK" || upper === "UNITED KINGDOM") return "GB";
+  if (/^[A-Z]{2}$/.test(upper)) return upper;
+  return undefined;
+}
+
+function valueFromCheckoutData(
+  data: checkoutSessionDto,
+  ...keys: string[]
+): unknown {
+  const src = data as unknown as Record<string, unknown>;
+  for (const key of keys) {
+    if (src[key] !== undefined && src[key] !== null && src[key] !== "") {
+      return src[key];
+    }
+  }
+  return undefined;
+}
+
+function buildKlarnaBillingDetails(checkoutData: checkoutSessionDto) {
+  const country =
+    normalizeBillingCountry(
+      valueFromCheckoutData(
+        checkoutData,
+        "billingCountry",
+        "countryCode",
+        "country"
+      )
+    ) || "GB";
+
+  const address = {
+    line1: firstNonEmptyString(
+      valueFromCheckoutData(
+        checkoutData,
+        "billingAddressLine1",
+        "addressLine1",
+        "address",
+        "line1"
+      )
+    ),
+    line2: firstNonEmptyString(
+      valueFromCheckoutData(
+        checkoutData,
+        "billingAddressLine2",
+        "addressLine2",
+        "line2"
+      )
+    ),
+    city: firstNonEmptyString(
+      valueFromCheckoutData(checkoutData, "billingCity", "city")
+    ),
+    state: firstNonEmptyString(
+      valueFromCheckoutData(checkoutData, "billingState", "state")
+    ),
+    postal_code: firstNonEmptyString(
+      valueFromCheckoutData(
+        checkoutData,
+        "billingPostalCode",
+        "postalCode",
+        "postcode",
+        "zip"
+      )
+    ),
+    country,
+  };
+
+  Object.keys(address).forEach((key) => {
+    if (!address[key]) delete address[key];
+  });
+
+  return {
+    email: checkoutData.email,
+    name:
+      firstNonEmptyString(
+        valueFromCheckoutData(
+          checkoutData,
+          "billingName",
+          "name",
+          "fullName",
+          "customerName"
+        )
+      ) || checkoutData.email,
+    phone: firstNonEmptyString(
+      valueFromCheckoutData(
+        checkoutData,
+        "billingPhone",
+        "phone",
+        "phoneNumber",
+        "mobile"
+      )
+    ),
+    address,
+  };
 }
 
 @Injectable()
@@ -87,6 +196,16 @@ export class StripeService {
 
       // Check if embedded mode is requested
       const isEmbedded = checkoutData.uiMode === "embedded";
+
+      if (!isEmbedded && isKlarnaCheckoutRequested(checkoutData)) {
+        return await this.createKlarnaRedirectPaymentIntent(
+          checkoutData,
+          amountInCents,
+          currency,
+          validSuccessUrl,
+          authResponse
+        );
+      }
 
       // Stripe Checkout only surfaces methods listed here; Klarna requires explicit "klarna".
       const payment_method_types =
@@ -154,6 +273,53 @@ export class StripeService {
         `Something went wrong while generating sessionId: ${err.message}`
       );
     }
+  }
+
+  private async createKlarnaRedirectPaymentIntent(
+    checkoutData: checkoutSessionDto,
+    amountInCents: number,
+    currency: string,
+    validSuccessUrl: string,
+    authResponse: Record<string, unknown>
+  ): Promise<any> {
+    const stripe = Stripe(Env.stripeSecretKey);
+    const returnUrl = `${Env.WEBSITE_URL}${validSuccessUrl}`;
+
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        "[stripe] paymentIntents.create direct Klarna redirect:",
+        "currency:",
+        currency
+      );
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency,
+      payment_method_types: ["klarna"],
+      confirm: true,
+      return_url: returnUrl,
+      receipt_email: checkoutData.email,
+      metadata: metadataForStripeCheckoutSession(checkoutData),
+      payment_method_data: {
+        type: "klarna",
+        billing_details: buildKlarnaBillingDetails(checkoutData),
+      },
+    });
+
+    const redirectUrl = paymentIntent.next_action?.redirect_to_url?.url;
+    if (!redirectUrl) {
+      callHTTPException(
+        "Klarna did not return a redirect URL. Please verify billing details, currency, country, and Klarna availability in Stripe."
+      );
+    }
+
+    return {
+      url: redirectUrl,
+      paymentIntentId: paymentIntent.id,
+      clientSecret: paymentIntent.client_secret,
+      ...authResponse,
+    };
   }
 
   /**
