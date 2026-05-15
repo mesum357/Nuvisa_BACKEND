@@ -36,6 +36,11 @@ export class checkoutSessionDto {
   @IsString()
   checkoutOrigin?: string;
 
+  /** ISO2 billing country for Klarna (GB, DE, …). Separate from visa destination `country`. */
+  @IsOptional()
+  @IsString()
+  billingCountry?: string;
+
   @IsOptional()
   @IsString()
   @IsNotEmpty()
@@ -126,10 +131,6 @@ export class checkoutSessionDto {
   @IsOptional()
   @IsString()
   mobile?: string;
-
-  @IsOptional()
-  @IsString()
-  billingCountry?: string;
 
   @IsOptional()
   @IsString()
