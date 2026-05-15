@@ -49,11 +49,15 @@ export class StripeController {
   @Get("session-metadata")
   async getSessionMetadata(@Query("payment_id") paymentId: string): Promise<any> {
     try {
-      const metadata =
+      const result =
         await this.stripeService.getSessionOrPaymentIntentMetadata(paymentId);
       return GetObjectTemplateForAPIResponseGeneral(
         EnumAPIResponseStatusType.SUCCESS,
-        { metadata: metadata || {} },
+        {
+          metadata: result?.metadata || {},
+          paymentIntentStatus: result?.paymentIntentStatus || null,
+          paymentIntentId: result?.paymentIntentId || null,
+        },
         "Session metadata retrieved"
       );
     } catch (error) {
