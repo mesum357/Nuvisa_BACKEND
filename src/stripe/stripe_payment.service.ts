@@ -17,6 +17,7 @@ import {
   resolveStripeCheckoutPaymentMethodTypes,
   resolveCheckoutSessionCurrency,
 } from "./stripe-checkout-payment-methods";
+import { resolveCheckoutRedirectUrls } from "./stripe-checkout-urls";
 
 /** Stripe session metadata values must be strings; arrays (e.g. payment_method_types) must be flattened. */
 function metadataForStripeCheckoutSession(
@@ -191,8 +192,10 @@ export class StripeService {
         };
       }
 
-      const validSuccessUrl = successUrl.replace(/&amp;/g, "&");
-      const validCancelUrl = cancelUrl.replace(/&amp;/g, "&");
+      const redirectUrls = resolveCheckoutRedirectUrls(
+        { successUrl, cancelUrl },
+        Env.WEBSITE_URL
+      );
 
       // Check if embedded mode is requested
       const isEmbedded = checkoutData.uiMode === "embedded";
@@ -202,7 +205,7 @@ export class StripeService {
           checkoutData,
           amountInCents,
           currency,
-          validSuccessUrl,
+          redirectUrls,
           authResponse
         );
       }
@@ -250,10 +253,10 @@ export class StripeService {
       // Configure for embedded or hosted checkout
       if (isEmbedded) {
         sessionConfig.ui_mode = "embedded";
-        sessionConfig.return_url = `${Env.WEBSITE_URL}${validSuccessUrl}`;
+        sessionConfig.return_url = redirectUrls.successUrl;
       } else {
-        sessionConfig.success_url = `${Env.WEBSITE_URL}${validSuccessUrl}`;
-        sessionConfig.cancel_url = `${Env.WEBSITE_URL}${validCancelUrl}`;
+        sessionConfig.success_url = redirectUrls.successUrl;
+        sessionConfig.cancel_url = redirectUrls.cancelUrl;
       }
 
       const session = await stripe.checkout.sessions.create(sessionConfig);
@@ -279,11 +282,10 @@ export class StripeService {
     checkoutData: checkoutSessionDto,
     amountInCents: number,
     currency: string,
-    validSuccessUrl: string,
+    redirectUrls: { successUrl: string; cancelUrl: string },
     authResponse: Record<string, unknown>
   ): Promise<any> {
     const stripe = Stripe(Env.stripeSecretKey);
-    const returnUrl = `${Env.WEBSITE_URL}${validSuccessUrl}`;
 
     if (process.env.NODE_ENV === "development") {
       console.log(
@@ -298,9 +300,13 @@ export class StripeService {
       currency,
       payment_method_types: ["klarna"],
       confirm: true,
-      return_url: returnUrl,
+      return_url: redirectUrls.cancelUrl,
       receipt_email: checkoutData.email,
-      metadata: metadataForStripeCheckoutSession(checkoutData),
+      metadata: {
+        ...metadataForStripeCheckoutSession(checkoutData),
+        successUrl: redirectUrls.successUrl,
+        cancelUrl: redirectUrls.cancelUrl,
+      },
       payment_method_data: {
         type: "klarna",
         billing_details: buildKlarnaBillingDetails(checkoutData),
