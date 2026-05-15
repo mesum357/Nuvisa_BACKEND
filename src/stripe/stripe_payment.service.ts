@@ -287,20 +287,20 @@ export class StripeService {
   ): Promise<any> {
     const stripe = Stripe(Env.stripeSecretKey);
 
-    if (process.env.NODE_ENV === "development") {
-      console.log(
-        "[stripe] paymentIntents.create direct Klarna redirect:",
-        "currency:",
-        currency
-      );
-    }
+    console.log("[Klarna] createKlarnaRedirectPaymentIntent called:", {
+      amountInCents,
+      currency,
+      successUrl: redirectUrls.successUrl,
+      cancelUrl: redirectUrls.cancelUrl,
+      email: checkoutData.email,
+    });
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency,
       payment_method_types: ["klarna"],
       confirm: true,
-      return_url: redirectUrls.cancelUrl,
+      return_url: redirectUrls.successUrl,
       receipt_email: checkoutData.email,
       metadata: {
         ...metadataForStripeCheckoutSession(checkoutData),
@@ -319,6 +319,13 @@ export class StripeService {
         "Klarna did not return a redirect URL. Please verify billing details, currency, country, and Klarna availability in Stripe."
       );
     }
+
+    console.log("[Klarna] PaymentIntent created:", {
+      paymentIntentId: paymentIntent.id,
+      status: paymentIntent.status,
+      returnUrl: redirectUrls.successUrl,
+      hasRedirectUrl: !!redirectUrl,
+    });
 
     return {
       url: redirectUrl,
@@ -802,7 +809,6 @@ export class StripeService {
             return;
           }
         }
-        return;
 
         console.log("✅ No duplicate found, webhook creating application for stripePaymentId:", stripePaymentId);
 
