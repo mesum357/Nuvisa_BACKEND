@@ -31,6 +31,11 @@ export class checkoutSessionDto {
   @IsString()
   cancelUrl?: string;
 
+  /** Browser origin where checkout started (e.g. http://localhost:3002). Used for Klarna return_url. */
+  @IsOptional()
+  @IsString()
+  checkoutOrigin?: string;
+
   @IsOptional()
   @IsString()
   @IsNotEmpty()

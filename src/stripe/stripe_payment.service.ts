@@ -17,7 +17,10 @@ import {
   resolveStripeCheckoutPaymentMethodTypes,
   resolveCheckoutSessionCurrency,
 } from "./stripe-checkout-payment-methods";
-import { resolveCheckoutRedirectUrls } from "./stripe-checkout-urls";
+import {
+  extractOriginFromCheckoutUrl,
+  resolveCheckoutRedirectUrls,
+} from "./stripe-checkout-urls";
 
 /** Stripe session metadata values must be strings; arrays (e.g. payment_method_types) must be flattened. */
 function metadataForStripeCheckoutSession(
@@ -192,10 +195,25 @@ export class StripeService {
         };
       }
 
+      const checkoutOrigin =
+        firstNonEmptyString(
+          checkoutData.checkoutOrigin,
+          extractOriginFromCheckoutUrl(successUrl),
+          extractOriginFromCheckoutUrl(cancelUrl)
+        ) || Env.WEBSITE_URL;
+
       const redirectUrls = resolveCheckoutRedirectUrls(
         { successUrl, cancelUrl },
-        Env.WEBSITE_URL
+        checkoutOrigin
       );
+
+      if (isKlarnaCheckoutRequested(checkoutData)) {
+        console.log("[Klarna] resolved redirect URLs:", {
+          checkoutOrigin,
+          successUrl: redirectUrls.successUrl,
+          cancelUrl: redirectUrls.cancelUrl,
+        });
+      }
 
       // Check if embedded mode is requested
       const isEmbedded = checkoutData.uiMode === "embedded";
@@ -336,21 +354,42 @@ export class StripeService {
   }
 
   /**
-   * Retrieve metadata from a Stripe Checkout Session or Payment Intent.
-   * Used by payment-success page to get country, travelers, etc. when localStorage is empty after redirect.
+   * Retrieve metadata (and PaymentIntent status when applicable) from Stripe.
+   * Used by payment-success after Klarna redirect when redirect_status may be missing or "processing".
    */
-  async getSessionOrPaymentIntentMetadata(paymentId: string): Promise<Record<string, string> | null> {
+  async getSessionOrPaymentIntentMetadata(paymentId: string): Promise<{
+    metadata: Record<string, string>;
+    paymentIntentStatus?: string;
+    paymentIntentId?: string;
+  } | null> {
     if (!paymentId || typeof paymentId !== "string") return null;
     try {
       const stripe = Stripe(Env.stripeSecretKey);
       const id = paymentId.trim();
       if (id.startsWith("cs_")) {
         const session = await stripe.checkout.sessions.retrieve(id, { expand: [] });
-        return (session.metadata as Record<string, string>) || null;
+        const metadata = (session.metadata as Record<string, string>) || {};
+        const paymentIntentStatus =
+          session.payment_status === "paid" ? "succeeded" : session.status;
+        console.log("[stripe] session-metadata (checkout session):", {
+          paymentId: id,
+          paymentIntentStatus,
+          sessionStatus: session.status,
+        });
+        return { metadata, paymentIntentStatus };
       }
       if (id.startsWith("pi_")) {
         const paymentIntent = await stripe.paymentIntents.retrieve(id);
-        return (paymentIntent.metadata as Record<string, string>) || null;
+        const metadata = (paymentIntent.metadata as Record<string, string>) || {};
+        console.log("[stripe] session-metadata (payment intent):", {
+          paymentId: id,
+          paymentIntentStatus: paymentIntent.status,
+        });
+        return {
+          metadata,
+          paymentIntentStatus: paymentIntent.status,
+          paymentIntentId: paymentIntent.id,
+        };
       }
       return null;
     } catch (err) {

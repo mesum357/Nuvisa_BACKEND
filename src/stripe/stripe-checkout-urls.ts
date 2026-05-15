@@ -42,6 +42,16 @@ function isApplicationStepUrl(value: string): boolean {
   return value.split("?")[0].replace(/\/+$/, "") === "/application-step";
 }
 
+export function extractOriginFromCheckoutUrl(value: unknown): string | null {
+  const normalized = normalizeCheckoutPath(value);
+  if (!isAbsoluteHttpUrl(normalized)) return null;
+  try {
+    return new URL(normalized).origin.replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
 export function resolveCheckoutRedirectUrls(
   input: CheckoutRedirectUrlInput,
   origin: string
