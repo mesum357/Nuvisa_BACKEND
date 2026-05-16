@@ -730,4 +730,80 @@ export class AdminController {
       callHTTPException(error.message);
     }
   }
+
+  @Patch('application/:id/assign')
+  async assignApplication(
+    @Param('id') applicationId: string,
+    @Body()
+    body: {
+      assignedAdminId?: string;
+      assignedAdminEmail?: string;
+      assignedAdminName?: string;
+    },
+    @Req() request: any
+  ) {
+    try {
+      const data = await this.adminService.assignApplication({
+        applicationId,
+        ...body,
+        adminId: request.user?.id,
+        adminEmail: request.user?.email,
+      });
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Application assigned successfully'
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
+
+  @Get('team-members')
+  async getTeamMembers() {
+    try {
+      const data = await this.adminService.getTeamMembers();
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Team members fetched successfully'
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
+
+  @Get('cms/homepage')
+  async getHomepageCmsSettings() {
+    try {
+      const data = await this.adminService.getHomepageCmsContent();
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Homepage CMS settings fetched successfully'
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
+
+  @Patch('cms/homepage')
+  async updateHomepageCmsSettings(
+    @Body() body: Record<string, string>,
+    @Req() request: any
+  ) {
+    try {
+      const data = await this.adminService.updateHomepageCmsContent(
+        body,
+        request.user?.email
+      );
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Homepage CMS settings updated successfully'
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
 }

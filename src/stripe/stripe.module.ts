@@ -11,11 +11,13 @@ import { VisaAPiAuthService } from "src/shared/services/getAuthToken.service";
 import { VisaApplicationService } from "src/applicationSteps/visa-application.service";
 import { GiftCardService } from "src/gift-card/gift-card.service";
 import { GiftCardModule } from "src/gift-card/gift-card.module";
+import { AdminModule } from "src/admin/admin.module";
 
 @Module({
   imports: [
     SequelizeModule.forFeature([Payment]),
     GiftCardModule,
+    AdminModule,
   ],
   controllers: [StripeController],
   providers: [

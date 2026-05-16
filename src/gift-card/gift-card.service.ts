@@ -392,13 +392,18 @@ export class GiftCardService {
         };
       }
 
+      const quantity = giftCard.quantity || 1;
       return {
         valid: true,
         message: "Gift card is valid",
         giftCard: {
           code: giftCard.code,
           amount: giftCard.amount,
-          quantity: giftCard.quantity || 1,
+          quantity,
+        },
+        benefits: {
+          freeTraveler: quantity,
+          freeInsurance: quantity,
         },
       };
     } catch (error) {

@@ -1,14 +1,32 @@
-import { Controller, Get, Post, Res } from "@nestjs/common";
+import { Controller, Get, Post, Body, Res } from "@nestjs/common";
 import { Response } from "express";
 import { sendEmail } from "./shared/services/sendEmail.service";
+import { AdminService } from "./admin/admin.service";
 
 @Controller()
 export class AppController {
-  constructor() {}
+  constructor(private readonly adminService: AdminService) {}
 
   @Get()
   getIndexPage(@Res() res: Response): void {
     res.sendFile("index.html", { root: "public" });
+  }
+
+  @Post("feedback")
+  async submitFeedback(
+    @Body()
+    body: { name?: string; email: string; message: string; rating?: number }
+  ) {
+    if (!body?.email?.trim() || !body?.message?.trim()) {
+      return { success: false, message: "Email and message are required" };
+    }
+    const result = await this.adminService.submitFeedback({
+      name: body.name,
+      email: body.email.trim(),
+      message: body.message.trim(),
+      rating: body.rating,
+    });
+    return { success: true, data: result };
   }
 
   @Post("test-email")

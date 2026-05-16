@@ -561,6 +561,19 @@ export class AdminService {
         updatedAt: new Date()
       });
 
+      await this.logApplicationActivity({
+        applicationId: updateDto.applicationId,
+        type: 'status_change',
+        description: `Status changed from ${oldStatus || 'unknown'} to ${updateDto.status}`,
+        adminId: updateDto.adminId,
+        adminEmail: undefined,
+        details: {
+          from: oldStatus,
+          to: updateDto.status,
+          notes: updateDto.notes || null,
+        },
+      });
+
       // Reload the application to get the updated values
       await application.reload();
 
@@ -707,8 +720,41 @@ export class AdminService {
     }
   }
 
+  async logApplicationActivity(data: {
+    applicationId: string;
+    type: string;
+    description: string;
+    adminId?: string;
+    adminEmail?: string;
+    details?: Record<string, unknown>;
+  }): Promise<void> {
+    try {
+      await this.sequelize.query(
+        `
+        INSERT INTO application_activities
+          (application_id, type, description, admin_id, admin_email, details, created_at)
+        VALUES
+          (:applicationId, :type, :description, :adminId, :adminEmail, :details::jsonb, NOW())
+        `,
+        {
+          replacements: {
+            applicationId: data.applicationId,
+            type: data.type,
+            description: data.description,
+            adminId: data.adminId || null,
+            adminEmail: data.adminEmail || null,
+            details: JSON.stringify(data.details || {}),
+          },
+          type: QueryTypes.INSERT,
+        }
+      );
+    } catch (error) {
+      console.error('Failed to log application activity:', error);
+    }
+  }
+
   /**
-   * Get application activity log (mock implementation)
+   * Get application activity log
    */
   async getApplicationActivity(applicationId: string): Promise<any> {
     try {
@@ -718,29 +764,37 @@ export class AdminService {
         throw new Error('Application not found');
       }
 
-      // Mock activity log - in real implementation, you'd have an activity/audit table
-      const activities = [
+      const rows = (await this.sequelize.query(
+        `
+        SELECT id, type, description, admin_id AS "adminId", admin_email AS "adminEmail",
+               details, created_at AS "timestamp"
+        FROM application_activities
+        WHERE application_id = :applicationId
+        ORDER BY created_at DESC
+        LIMIT 100
+        `,
         {
-          id: 1,
+          replacements: { applicationId },
+          type: QueryTypes.SELECT,
+        }
+      )) as Array<Record<string, unknown>>;
+
+      const seeded = [
+        {
+          id: 'seed-submitted',
           type: 'status_change',
-          description: 'Application submitted',
+          description: 'Application created',
           timestamp: application.createdAt,
           adminId: null,
-          details: { from: null, to: 'submitted' }
+          adminEmail: null,
+          details: { to: application.applicationStatus || 'submitted' },
         },
-        {
-          id: 2,
-          type: 'status_change',
-          description: 'Application under review',
-          timestamp: new Date(application.createdAt.getTime() + 24 * 60 * 60 * 1000),
-          adminId: 'admin-1',
-          details: { from: 'submitted', to: 'under_review' }
-        }
+        ...rows,
       ];
 
       return {
         applicationId,
-        activities: activities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        activities: seeded,
       };
     } catch (error) {
       console.error('Error fetching application activity:', error);
@@ -749,7 +803,7 @@ export class AdminService {
   }
 
   /**
-   * Get application comments (mock implementation)
+   * Get application comments (customer-agent discussions)
    */
   async getApplicationComments(applicationId: string): Promise<any> {
     try {
@@ -759,31 +813,25 @@ export class AdminService {
         throw new Error('Application not found');
       }
 
-      // Mock comments - in real implementation, you'd have a comments table
-      const comments = [
+      const comments = (await this.sequelize.query(
+        `
+        SELECT id, comment, is_internal AS "isInternal", author_type AS "authorType",
+               author_id AS "authorId", author_email AS "authorEmail",
+               created_at AS "createdAt", updated_at AS "updatedAt"
+        FROM application_comments
+        WHERE application_id = :applicationId
+        ORDER BY created_at DESC
+        LIMIT 200
+        `,
         {
-          id: 1,
-          comment: 'Application looks good, all documents are in order.',
-          isInternal: true,
-          adminId: 'admin-1',
-          adminEmail: 'admin@nuvisa.com',
-          createdAt: new Date(application.createdAt.getTime() + 2 * 60 * 60 * 1000),
-          updatedAt: new Date(application.createdAt.getTime() + 2 * 60 * 60 * 1000)
-        },
-        {
-          id: 2,
-          comment: 'Please provide additional bank statement for the last 3 months.',
-          isInternal: false,
-          adminId: 'admin-1',
-          adminEmail: 'admin@nuvisa.com',
-          createdAt: new Date(application.createdAt.getTime() + 3 * 60 * 60 * 1000),
-          updatedAt: new Date(application.createdAt.getTime() + 3 * 60 * 60 * 1000)
+          replacements: { applicationId },
+          type: QueryTypes.SELECT,
         }
-      ];
+      )) as Array<Record<string, unknown>>;
 
       return {
         applicationId,
-        comments: comments.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        comments,
       };
     } catch (error) {
       console.error('Error fetching application comments:', error);
@@ -792,7 +840,7 @@ export class AdminService {
   }
 
   /**
-   * Add comment to application (mock implementation)
+   * Add comment to application
    */
   async addApplicationComment(data: {
     applicationId: string;
@@ -808,30 +856,244 @@ export class AdminService {
         throw new Error('Application not found');
       }
 
-      // Mock comment creation - in real implementation, you'd save to a comments table
-      const newComment = {
-        id: Date.now(), // Mock ID
-        comment: data.comment,
-        isInternal: data.isInternal,
+      const inserted = (await this.sequelize.query(
+        `
+        INSERT INTO application_comments
+          (application_id, comment, is_internal, author_type, author_id, author_email, created_at, updated_at)
+        VALUES
+          (:applicationId, :comment, :isInternal, 'admin', :adminId, :adminEmail, NOW(), NOW())
+        RETURNING id, comment, is_internal AS "isInternal", author_id AS "adminId",
+                  author_email AS "adminEmail", created_at AS "createdAt", updated_at AS "updatedAt"
+        `,
+        {
+          replacements: {
+            applicationId: data.applicationId,
+            comment: data.comment,
+            isInternal: Boolean(data.isInternal),
+            adminId: data.adminId || null,
+            adminEmail: data.adminEmail || null,
+          },
+          type: QueryTypes.SELECT,
+        }
+      )) as Array<Record<string, unknown>>;
+
+      const newComment = inserted?.[0] || null;
+
+      await this.logApplicationActivity({
+        applicationId: data.applicationId,
+        type: 'comment',
+        description: data.isInternal
+          ? 'Internal note added'
+          : 'Message sent to customer',
         adminId: data.adminId,
         adminEmail: data.adminEmail,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+        details: { isInternal: data.isInternal },
+      });
 
-      // In a real implementation, you would:
-      // 1. Save the comment to a comments table
-      // 2. Send email notification if isInternal is false
-      // 3. Log the activity
+      if (!data.isInternal && application.email) {
+        try {
+          await sendEmail({
+            emailAddress: application.email,
+            subject: 'New message about your NUvisa application',
+            body: `<p>Hello,</p><p>Our team has sent you a message regarding your visa application:</p><blockquote>${data.comment}</blockquote><p>— Team NUvisa</p>`,
+          });
+        } catch (emailError) {
+          console.error('Failed to notify customer of comment:', emailError);
+        }
+      }
 
       return {
         applicationId: data.applicationId,
-        comment: newComment
+        comment: newComment,
       };
     } catch (error) {
       console.error('Error adding application comment:', error);
       throw new Error('Failed to add application comment');
     }
+  }
+
+  async assignApplication(data: {
+    applicationId: string;
+    assignedAdminId?: string;
+    assignedAdminEmail?: string;
+    assignedAdminName?: string;
+    adminId?: string;
+    adminEmail?: string;
+  }): Promise<any> {
+    const application = await this.visaApplicationModel.findByPk(data.applicationId);
+    if (!application) {
+      throw new Error('Application not found');
+    }
+
+    await application.update({
+      assignedAdminId: data.assignedAdminId || null,
+      assignedAdminEmail: data.assignedAdminEmail || null,
+      assignedAdminName: data.assignedAdminName || null,
+    });
+
+    await this.logApplicationActivity({
+      applicationId: data.applicationId,
+      type: 'assignment',
+      description: `Assigned to ${data.assignedAdminName || data.assignedAdminEmail || 'unassigned'}`,
+      adminId: data.adminId,
+      adminEmail: data.adminEmail,
+      details: {
+        assignedAdminId: data.assignedAdminId,
+        assignedAdminEmail: data.assignedAdminEmail,
+        assignedAdminName: data.assignedAdminName,
+      },
+    });
+
+    return this.formatApplicationResponse(application);
+  }
+
+  async getTeamMembers(): Promise<any[]> {
+    try {
+      const rows = (await this.sequelize.query(
+        `SELECT value FROM site_content WHERE key = 'team_members' LIMIT 1`,
+        { type: QueryTypes.SELECT }
+      )) as Array<{ value: string }>;
+
+      if (rows?.[0]?.value) {
+        const parsed = JSON.parse(rows[0].value);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // fall through
+    }
+
+    return [
+      { id: 'admin-1', name: 'NUvisa Admin', email: 'admin@nuvisa.co.uk' },
+    ];
+  }
+
+  async getHomepageCmsContent(): Promise<Record<string, string>> {
+    const keys = [
+      'topdestination_title',
+      'topdestination_subtitle',
+      'topdestination_countries',
+      'price_match_title',
+      'price_match_description',
+      'price_match_tooltip',
+    ];
+
+    const rows = (await this.sequelize.query(
+      `SELECT key, value FROM site_content WHERE key IN (:keys)`,
+      {
+        replacements: { keys },
+        type: QueryTypes.SELECT,
+      }
+    )) as Array<{ key: string; value: string }>;
+
+    const byKey: Record<string, string> = {};
+    rows.forEach((row) => {
+      if (row?.key) byKey[row.key] = row.value;
+    });
+    return byKey;
+  }
+
+  async updateHomepageCmsContent(
+    updates: Record<string, string>,
+    updatedBy?: string
+  ): Promise<Record<string, string>> {
+    const allowedKeys = new Set([
+      'topdestination_title',
+      'topdestination_subtitle',
+      'topdestination_countries',
+      'price_match_title',
+      'price_match_description',
+      'price_match_tooltip',
+    ]);
+
+    await this.sequelize.transaction(async (transaction) => {
+      for (const [key, value] of Object.entries(updates || {})) {
+        if (!allowedKeys.has(key)) continue;
+        await this.sequelize.query(
+          `
+          INSERT INTO site_content (key, value, type, created_at, updated_at, updated_by)
+          VALUES (:key, :value, 'text', NOW(), NOW(), :updatedBy)
+          ON CONFLICT (key)
+          DO UPDATE SET value = EXCLUDED.value, updated_at = NOW(), updated_by = EXCLUDED.updated_by
+          `,
+          {
+            replacements: { key, value: String(value ?? ''), updatedBy: updatedBy || null },
+            type: QueryTypes.INSERT,
+            transaction,
+          }
+        );
+      }
+    });
+
+    return this.getHomepageCmsContent();
+  }
+
+  async submitFeedback(data: {
+    name?: string;
+    email: string;
+    message: string;
+    rating?: number;
+  }): Promise<any> {
+    const inserted = (await this.sequelize.query(
+      `
+      INSERT INTO feedback_submissions (name, email, message, rating, created_at)
+      VALUES (:name, :email, :message, :rating, NOW())
+      RETURNING id, created_at AS "createdAt"
+      `,
+      {
+        replacements: {
+          name: data.name || null,
+          email: data.email,
+          message: data.message,
+          rating: data.rating ?? null,
+        },
+        type: QueryTypes.SELECT,
+      }
+    )) as Array<Record<string, unknown>>;
+
+    try {
+      await sendEmail({
+        emailAddress: process.env.FEEDBACK_NOTIFY_EMAIL || 'support@nuvisa.co.uk',
+        subject: 'New NUvisa feedback submission',
+        body: `<p><strong>From:</strong> ${data.name || 'Anonymous'} (${data.email})</p>
+               <p><strong>Rating:</strong> ${data.rating ?? 'N/A'}</p>
+               <p>${data.message}</p>`,
+      });
+    } catch (error) {
+      console.error('Feedback notify email failed:', error);
+    }
+
+    return inserted?.[0] || { success: true };
+  }
+
+  async sendInsurancePurchaseConfirmation(data: {
+    email: string;
+    amount?: string | number;
+    applicationId?: string;
+    orderId?: string;
+  }): Promise<void> {
+    if (!data.email) return;
+
+    const amountText =
+      data.amount !== undefined && data.amount !== null && data.amount !== ''
+        ? `£${Number(data.amount).toFixed(2)}`
+        : 'your insurance payment';
+
+    const body = `
+      <div style="font-family: Arial, sans-serif; color: #111;">
+        <h2 style="color: #7350FF;">Insurance purchase successful</h2>
+        <p>Thank you for purchasing your NUvisa insurance certificate (${amountText}).</p>
+        <p>Your payment has been recorded${data.applicationId ? ' on your existing application' : ''}. No new visa application was created.</p>
+        ${data.orderId ? `<p><strong>Reference:</strong> ${data.orderId}</p>` : ''}
+        <p>If you have questions, reply to this email or contact our support team.</p>
+        <p>— Team NUvisa</p>
+      </div>
+    `;
+
+    await sendEmail({
+      emailAddress: data.email,
+      subject: 'NUvisa — Insurance purchase confirmed',
+      body,
+    });
   }
 
   /**
