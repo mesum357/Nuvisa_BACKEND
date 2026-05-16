@@ -975,6 +975,14 @@ export class AdminService {
       'price_match_title',
       'price_match_description',
       'price_match_tooltip',
+      'occasion_section_title',
+      'occasion_section_subtitle',
+      'ocassion_title',
+      'ocassion_subtitle',
+      'occasions_json',
+      'visasolution_title',
+      'visasolution_subtitle',
+      'visasolution_everyday_countries',
     ];
 
     const rows = (await this.sequelize.query(
@@ -1003,6 +1011,14 @@ export class AdminService {
       'price_match_title',
       'price_match_description',
       'price_match_tooltip',
+      'occasion_section_title',
+      'occasion_section_subtitle',
+      'ocassion_title',
+      'ocassion_subtitle',
+      'occasions_json',
+      'visasolution_title',
+      'visasolution_subtitle',
+      'visasolution_everyday_countries',
     ]);
 
     await this.sequelize.transaction(async (transaction) => {
