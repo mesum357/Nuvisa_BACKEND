@@ -1065,6 +1065,38 @@ export class AdminService {
     return inserted?.[0] || { success: true };
   }
 
+  async getFeedbackSubmissions(options?: {
+    page?: number;
+    limit?: number;
+  }): Promise<{ items: Array<Record<string, unknown>>; total: number }> {
+    const page = Math.max(1, Number(options?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(options?.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    const countRows = (await this.sequelize.query(
+      `SELECT COUNT(*)::int AS total FROM feedback_submissions`,
+      { type: QueryTypes.SELECT }
+    )) as Array<{ total: number }>;
+
+    const items = (await this.sequelize.query(
+      `
+      SELECT id, name, email, message, rating, created_at AS "createdAt"
+      FROM feedback_submissions
+      ORDER BY created_at DESC
+      LIMIT :limit OFFSET :offset
+      `,
+      {
+        replacements: { limit, offset },
+        type: QueryTypes.SELECT,
+      }
+    )) as Array<Record<string, unknown>>;
+
+    return {
+      items,
+      total: countRows?.[0]?.total ?? 0,
+    };
+  }
+
   async sendInsurancePurchaseConfirmation(data: {
     email: string;
     amount?: string | number;
