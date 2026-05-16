@@ -440,6 +440,23 @@ export class GiftCardService {
         used_by_email: userEmail || dto.email || null,
       });
 
+      const redeemEmail = userEmail || dto.email || giftCard.email;
+      if (redeemEmail) {
+        try {
+          await sendEmail({
+            emailAddress: redeemEmail,
+            subject: "NUvisa — Gift card redeemed successfully",
+            body: `<div style="font-family: Arial, sans-serif; color: #111;">
+              <h2 style="color: #7350FF;">Gift card redeemed</h2>
+              <p>Your NUvisa gift card <strong>${giftCard.code}</strong> has been applied at checkout.</p>
+              <p>Thank you for choosing NUvisa.</p>
+            </div>`,
+          });
+        } catch (emailErr) {
+          console.error("Gift card redeem confirmation email failed:", emailErr);
+        }
+      }
+
       return {
         success: true,
         message: "Gift card redeemed successfully",

@@ -806,4 +806,24 @@ export class AdminController {
       callHTTPException(error.message);
     }
   }
+
+  @Get('feedback')
+  async getFeedbackSubmissions(
+    @Query('page') page: string,
+    @Query('limit') limit: string
+  ) {
+    try {
+      const data = await this.adminService.getFeedbackSubmissions({
+        page: page ? Number(page) : undefined,
+        limit: limit ? Number(limit) : undefined,
+      });
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        data,
+        'Feedback submissions fetched successfully'
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
 }

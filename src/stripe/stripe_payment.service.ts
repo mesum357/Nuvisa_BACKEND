@@ -12,6 +12,7 @@ import { Request } from "express";
 import { AuthService } from "src/auth/auth.service";
 import { VisaService } from "src/visaApis/visaApi.service";
 import { GiftCardService } from "src/gift-card/gift-card.service";
+import { AdminService } from "src/admin/admin.service";
 import {
   isKlarnaCheckoutRequested,
   resolveStripeCheckoutPaymentMethodTypes,
@@ -158,7 +159,8 @@ export class StripeService {
     private readonly authService: AuthService,
     private readonly visaService: VisaService,
     private readonly visaApplicationService: VisaApplicationService,
-    private readonly giftCardService: GiftCardService
+    private readonly giftCardService: GiftCardService,
+    private readonly adminService: AdminService
   ) { }
 
   async createCheckoutSession(checkoutData: checkoutSessionDto): Promise<any> {
@@ -782,8 +784,27 @@ export class StripeService {
             paymentDate: new Date().toISOString(),
           });
         } else {
-          // No travelerIndex provided => application-level insurance payment (covers all travelers)
-          if (!applicationIdValid || !paymentAmountValid || !paymentTypeValid || !orderIdValid || !emailValid) {
+          // Standalone insurance checkout (no application yet)
+          if (!applicationIdValid) {
+            if (emailValid && paymentAmountValid) {
+              try {
+                await this.adminService.sendInsurancePurchaseConfirmation({
+                  email,
+                  amount: paymentAmount,
+                  orderId: orderId || data.id,
+                });
+              } catch (emailErr) {
+                console.error("Standalone insurance confirmation email failed:", emailErr);
+              }
+            }
+            if (!hasApplicationCreation) {
+              return;
+            }
+            return;
+          }
+
+          // Application-level insurance payment (covers all travelers)
+          if (!paymentAmountValid || !paymentTypeValid || !orderIdValid || !emailValid) {
             console.error("❌ APPLICATION-LEVEL INSURANCE PAYMENT METADATA INCOMPLETE");
             return;
           }
