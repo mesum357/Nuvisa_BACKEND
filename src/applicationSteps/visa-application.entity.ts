@@ -132,4 +132,16 @@ export class VisaApplication extends Model<VisaApplication> {
   @AllowNull(true)
   @Column({ type: DataType.JSON })
   insuranceDetails: any; // Application-level insurance details information
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  assignedAdminId: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  assignedAdminEmail: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING })
+  assignedAdminName: string;
 }

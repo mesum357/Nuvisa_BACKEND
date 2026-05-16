@@ -97,6 +97,8 @@ export class AppModule implements OnModuleInit {
       
       // Create gift_cards table if it doesn't exist
       await this.createGiftCardsTable();
+
+      await this.createApplicationAdminTables();
       
       await this.sequelize.sync({ alter: true });
       
@@ -368,6 +370,69 @@ export class AppModule implements OnModuleInit {
       }
     } catch (error) {
       console.error('Failed to initialize email templates:', error);
+    }
+  }
+
+  async createApplicationAdminTables() {
+    try {
+      await this.sequelize.query(`
+        CREATE TABLE IF NOT EXISTS application_activities (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          application_id UUID NOT NULL,
+          type VARCHAR(100) NOT NULL,
+          description TEXT,
+          admin_id VARCHAR(255),
+          admin_email VARCHAR(255),
+          details JSONB,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await this.sequelize.query(`
+        CREATE INDEX IF NOT EXISTS application_activities_app_id_idx
+        ON application_activities(application_id);
+      `);
+      await this.sequelize.query(`
+        CREATE TABLE IF NOT EXISTS application_comments (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          application_id UUID NOT NULL,
+          comment TEXT NOT NULL,
+          is_internal BOOLEAN DEFAULT false,
+          author_type VARCHAR(50) NOT NULL DEFAULT 'admin',
+          author_id VARCHAR(255),
+          author_email VARCHAR(255),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await this.sequelize.query(`
+        CREATE INDEX IF NOT EXISTS application_comments_app_id_idx
+        ON application_comments(application_id);
+      `);
+      await this.sequelize.query(`
+        CREATE TABLE IF NOT EXISTS feedback_submissions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name VARCHAR(255),
+          email VARCHAR(255) NOT NULL,
+          message TEXT NOT NULL,
+          rating INTEGER,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await this.sequelize.query(`
+        ALTER TABLE visa_applications
+        ADD COLUMN IF NOT EXISTS assigned_admin_id VARCHAR(255);
+      `);
+      await this.sequelize.query(`
+        ALTER TABLE visa_applications
+        ADD COLUMN IF NOT EXISTS assigned_admin_email VARCHAR(255);
+      `);
+      await this.sequelize.query(`
+        ALTER TABLE visa_applications
+        ADD COLUMN IF NOT EXISTS assigned_admin_name VARCHAR(255);
+      `);
+      console.log('✓ Application admin tables ready');
+    } catch (error: any) {
+      console.error('✗ Error creating application admin tables:', error?.message);
     }
   }
 }

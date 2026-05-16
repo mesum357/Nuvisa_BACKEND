@@ -22,10 +22,14 @@ import { StripeService } from "./stripe_payment.service";
 import { checkoutSessionDto } from "./dto/stripe.dto";
 import { Request, Response } from "express";
 import { VisaApplication } from "src/applicationSteps/visa-application.entity";
+import { AdminService } from "src/admin/admin.service";
 
 @Controller("stripe_payment")
 export class StripeController {
-  constructor(private readonly stripeService: StripeService) {}
+  constructor(
+    private readonly stripeService: StripeService,
+    private readonly adminService: AdminService
+  ) {}
 
   @Post("session")
   @UsePipes(ValidationPipe)
@@ -171,6 +175,17 @@ export class StripeController {
 
       const result =
         await this.stripeService.handlePaymentSuccess(mockPaymentData);
+
+      try {
+        await this.adminService.sendInsurancePurchaseConfirmation({
+          email: derivedEmail || body.email,
+          amount: derivedAmount || body.amount,
+          applicationId: body.applicationId,
+          orderId: mockOrderId,
+        });
+      } catch (emailErr) {
+        console.error("Insurance confirmation email failed:", emailErr);
+      }
 
       return GetObjectTemplateForAPIResponseGeneral(
         EnumAPIResponseStatusType.SUCCESS,

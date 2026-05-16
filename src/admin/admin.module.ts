@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AdminController } from './admin.controller';
+import { CmsPublicController } from './cms-public.controller';
 import { AdminService } from './admin.service';
 import { VisaApplication } from '../applicationSteps/visa-application.entity';
 import { User } from '../auth/auth.entity';
@@ -13,7 +14,7 @@ import { JwtService } from '@nestjs/jwt';
   imports: [
     SequelizeModule.forFeature([VisaApplication, User, EmailTemplate, EmailLog])
   ],
-  controllers: [AdminController],
+  controllers: [AdminController, CmsPublicController],
   providers: [AdminService, AuthGuard, JwtService],
   exports: [AdminService]
 })
