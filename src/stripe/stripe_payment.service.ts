@@ -624,7 +624,19 @@ export class StripeService {
       const hasInsurance = paymentTypes.includes("additional_traveler_insurance") || 
                           paymentTypes.includes("traveler_insurance");
       
-      console.log("🔍 Parsed payment types:", { paymentTypes, hasGiftCard, hasApplicationCreation, hasInsurance });
+      console.log("🔍 Parsed payment types:", { 
+        paymentTypes, 
+        hasGiftCard, 
+        hasApplicationCreation, 
+        hasInsurance,
+        paymentMethodTypes: [hasGiftCard && "GIFT_CARD", hasApplicationCreation && "APPLICATION_CREATION", hasInsurance && "INSURANCE"].filter(Boolean)
+      });
+
+      // Early return if nothing to process
+      if (!hasGiftCard && !hasApplicationCreation && !hasInsurance) {
+        console.warn("⚠️  WARNING: No payment types detected!");
+        console.warn("   Defaulting to application_creation for backward compatibility");
+      }
 
       // Handle gift card purchases (can be combined with other payment types)
       if (hasGiftCard) {
@@ -785,21 +797,28 @@ export class StripeService {
           });
         } else {
           // Standalone insurance checkout (no application yet)
+          console.log("🛡️  STANDALONE INSURANCE DETECTED (no applicationId)");
           if (!applicationIdValid) {
+            console.log("✅ Standalone insurance: NO applicationId provided (as expected)");
             if (emailValid && paymentAmountValid) {
               try {
+                console.log("📧 Sending standalone insurance confirmation to:", email);
                 await this.adminService.sendInsurancePurchaseConfirmation({
                   email,
                   amount: paymentAmount,
                   orderId: orderId || data.id,
                 });
+                console.log("✅ Standalone insurance confirmation email sent");
               } catch (emailErr) {
-                console.error("Standalone insurance confirmation email failed:", emailErr);
+                console.error("❌ Standalone insurance confirmation email failed:", emailErr);
               }
             }
+            console.log("🛡️  Standalone insurance: Checking hasApplicationCreation:", hasApplicationCreation);
             if (!hasApplicationCreation) {
+              console.log("✅ CORRECT: No application creation - returning early");
               return;
             }
+            console.log("⚠️  WARNING: hasApplicationCreation is true, but this is standalone insurance");
             return;
           }
 
@@ -846,6 +865,7 @@ export class StripeService {
         }
       } else if (hasApplicationCreation) {
         // Handle application creation (can be combined with gift card)
+        console.log("✅ APPLICATION CREATION DETECTED - Creating visa application");
         const email = data.metadata?.email || data.customer_details?.email;
         const visaTypeId = data.metadata?.visaTypeId;
         const amountPaid = data.metadata?.amount;
