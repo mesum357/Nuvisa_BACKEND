@@ -136,7 +136,11 @@ export class GiftCardService {
       });
 
       if (!template) {
-        console.error("❌ Gift card email template not found");
+        console.error("❌ CRITICAL: Gift card email template not found");
+        console.error("   Template key: 'gift_card_purchase'");
+        console.error("   Required: isActive = true");
+        console.error("   This means recipient will NOT receive their gift card code!");
+        console.error("   CHECK: Email templates table for key='gift_card_purchase'");
         // Don't throw error, just log - email will be sent via Stripe receipt
         return;
       }
@@ -243,24 +247,39 @@ export class GiftCardService {
       const footerContent = await this.getEmailFooterContent();
 
       // Send email
-      await sendEmail(
-        {
-          emailAddress: firstCard.email,
-          subject,
-          body: finalEmailBody,
-          excludeDecorativeImage: false,
-          inlineImages: [
-            {
-              filename: "gift-card.png",
-              path: "https://www.nuvisa.co.uk/image/gitftnewcard.png",
-              cid: giftCardImageCid,
-            },
-          ],
-        },
-        footerContent
-      );
+      console.log('   📤 Calling sendEmail service...');
+      console.log('   📧 Recipient:', firstCard.email);
+      console.log('   📝 Subject:', subject);
+      console.log('   📎 Inline images: 1 (gift-card.png)');
       
-      console.log('   ✅ Gift card email sent successfully');
+      try {
+        await sendEmail(
+          {
+            emailAddress: firstCard.email,
+            subject,
+            body: finalEmailBody,
+            excludeDecorativeImage: false,
+            inlineImages: [
+              {
+                filename: "gift-card.png",
+                path: "https://www.nuvisa.co.uk/image/gitftnewcard.png",
+                cid: giftCardImageCid,
+              },
+            ],
+          },
+          footerContent
+        );
+        
+        console.log('   ✅ Gift card email sent successfully to:', firstCard.email);
+      } catch (emailSendError) {
+        console.error('   ❌ sendEmail service failed:', emailSendError);
+        console.error('   Error details:', {
+          message: emailSendError.message,
+          code: emailSendError.code,
+          stack: emailSendError.stack,
+        });
+        throw emailSendError;
+      }
     } catch (error) {
       console.error("❌ Error sending gift card email:", error);
       console.error("📧 Gift card email details:", {
