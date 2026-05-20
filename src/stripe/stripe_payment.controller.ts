@@ -90,6 +90,14 @@ export class StripeController {
   @Post("webhook")
   async handleStripeWebhook(@Req() req: Request, @Res() res: Response) {
     try {
+      console.log('\n🔔 WEBHOOK RECEIVED!');
+      console.log('=' .repeat(60));
+      console.log('📨 Incoming webhook request');
+      console.log('   Timestamp:', new Date().toISOString());
+      console.log('   Path:', req.path);
+      console.log('   Method:', req.method);
+      console.log('   Headers signature:', req.headers['stripe-signature'] ? '✅ Present' : '❌ Missing');
+      
       const rawReq = req as Request & { rawBody: Buffer };
       
       // Double-check: if rawBody wasn't set by middleware, try to get it from req.body
@@ -105,10 +113,17 @@ export class StripeController {
         }
       }
       
+      console.log('📊 Raw body info:');
+      console.log('   Is Buffer:', Buffer.isBuffer(rawReq.rawBody));
+      console.log('   Length:', rawReq.rawBody?.length || 0, 'bytes');
+      
       const response = await this.stripeService.handleWebhook(rawReq);
+      console.log('✅ Webhook processed successfully');
+      console.log('=' .repeat(60) + '\n');
       return res.status(HttpStatus.OK).json(response);
     } catch (error) {
-      console.error("Webhook processing error:", error);
+      console.error("❌ Webhook processing error:", error);
+      console.error('=' .repeat(60) + '\n');
       callHTTPException(error.message);
     }
   }

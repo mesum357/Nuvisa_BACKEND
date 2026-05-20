@@ -32,6 +32,11 @@ export async function sendEmail(emailMeta, footerContent?: any) {
       throw new Error("Email address and subject are required");
     }
 
+    // Ensure footerContent is an object (not undefined) so we can safely set properties
+    if (!footerContent || typeof footerContent !== 'object') {
+      footerContent = {};
+    }
+
     // Convert relative logo URLs to absolute URLs
     let attachments: any[] | undefined;
     const baseUrl = Env.WEBSITE_URL || 'https://nuvisa.co.uk';

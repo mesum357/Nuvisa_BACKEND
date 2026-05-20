@@ -121,22 +121,49 @@ export class GiftCardService {
     // Handle both single gift card and array for backward compatibility
     const giftCardsArray = Array.isArray(giftCards) ? giftCards : [giftCards];
     const firstCard = giftCardsArray[0];
+    const codes = giftCardsArray.map(gc => gc.code);
     
     try {
       
       console.log('📧 Sending Gift Card Email:');
       console.log('   📧 To:', firstCard.email);
       console.log('   🎫 Number of Codes:', giftCardsArray.length);
-      console.log('   🎫 Codes:', giftCardsArray.map(gc => gc.code).join(', '));
+      console.log('   🎫 Codes:', codes.join(', '));
       console.log('   💰 Amount:', firstCard.amount);
       
       // Get email template from database
-      const template = await EmailTemplate.findOne({
-        where: { key: "gift_card_purchase", isActive: true },
-      });
+      let template = null;
+      try {
+        template = await EmailTemplate.findOne({
+          where: { key: "gift_card_purchase", isActive: true },
+        });
+      } catch (findError) {
+        console.error('❌ Error querying gift_card_purchase template:', findError);
+      }
 
+      // Check if template exists and its state
       if (!template) {
-        console.warn("⚠️ Gift card email template not found. Sending fallback gift card email.");
+        console.warn("⚠️ Gift card email template not found or inactive");
+        
+        // Try to find it regardless of isActive status for debugging
+        let allTemplates = null;
+        try {
+          allTemplates = await EmailTemplate.findAll({
+            where: { key: "gift_card_purchase" },
+          });
+          if (allTemplates && allTemplates.length > 0) {
+            console.warn("   Found templates with key 'gift_card_purchase':");
+            allTemplates.forEach((t, idx) => {
+              console.warn(`   [${idx}] isActive: ${t.get('isActive')}, id: ${t.get('id')}`);
+            });
+          } else {
+            console.warn("   No templates found with key 'gift_card_purchase' in database");
+          }
+        } catch (err) {
+          console.error("   Error checking templates:", err?.message);
+        }
+        
+        console.warn("   Using fallback HTML email instead");
         const subject = "Your NUvisa Gift Card";
         const codesHtml = codes
           .map(
@@ -155,20 +182,26 @@ export class GiftCardService {
         `;
 
         const footerContent = await this.getEmailFooterContent();
-        await sendEmail(
-          {
-            emailAddress: firstCard.email,
-            subject,
-            body: emailBody,
-            excludeDecorativeImage: false,
-          },
-          footerContent
-        );
-        return;
+        console.log('   📤 Sending fallback email via sendEmail...');
+        try {
+          const result = await sendEmail(
+            {
+              emailAddress: firstCard.email,
+              subject,
+              body: emailBody,
+              excludeDecorativeImage: false,
+            },
+            footerContent
+          );
+          console.log('   ✅ Fallback email sent successfully:', result?.messageId || 'no message ID');
+          return;
+        } catch (fallbackError) {
+          console.error('   ❌ Fallback email send failed:', fallbackError?.message || fallbackError);
+          throw fallbackError;
+        }
       }
 
       // Prepare codes data - send all codes to the email template
-      const codes = giftCardsArray.map(gc => gc.code);
       const dynamicData = {
         code: codes[0], // Primary code for backward compatibility
         codes: codes, // All codes as an array
@@ -177,11 +210,41 @@ export class GiftCardService {
         email: firstCard.email,
       };
 
-      const { subject, emailBody } = await renderTemplateFromDB(
-        "gift_card_purchase",
-        dynamicData,
-        template
-      );
+      console.log('   🔄 Rendering template with dynamic data:', {
+        code: codes[0],
+        codes_count: codes.length,
+        amount: firstCard.amount,
+      });
+
+      let subject, emailBody;
+      try {
+        const rendered = await renderTemplateFromDB(
+          "gift_card_purchase",
+          dynamicData,
+          template
+        );
+        subject = rendered.subject;
+        emailBody = rendered.emailBody;
+        console.log('   ✅ Template rendered successfully');
+      } catch (renderError) {
+        console.error('   ❌ Template rendering failed:', renderError?.message);
+        console.error('   Falling back to basic HTML email');
+        subject = "Your NUvisa Gift Card";
+        emailBody = `
+          <p>Hi,</p>
+          <p>Thank you for your gift card purchase with NUvisa.</p>
+          <p>Your gift card redemption code${codes.length > 1 ? "s" : ""}:</p>
+          ${codes
+            .map(
+              (code) =>
+                `<div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 12px 0; text-align: center;"><p style="margin:0;font-size:24px;font-weight:700;letter-spacing:1px;color:#000;font-family:'Courier New',monospace;">${code}</p></div>`
+            )
+            .join("")}
+          <p>Amount: £${firstCard.amount}</p>
+          <p>Redeem your gift card at <a href="https://www.nuvisa.co.uk">nuvisa.co.uk</a>.</p>
+          <p>Thank you!</p>
+        `;
+      }
 
       // Ensure gift card artwork is embedded inline so email clients don't block it
       const giftCardImageCid = "gift-card-image";
@@ -273,9 +336,10 @@ export class GiftCardService {
       console.log('   📧 Recipient:', firstCard.email);
       console.log('   📝 Subject:', subject);
       console.log('   📎 Inline images: 1 (gift-card.png)');
+      console.log('   📏 Email body length:', finalEmailBody?.length || 0, 'characters');
       
       try {
-        await sendEmail(
+        const result = await sendEmail(
           {
             emailAddress: firstCard.email,
             subject,
@@ -292,14 +356,22 @@ export class GiftCardService {
           footerContent
         );
         
-        console.log('   ✅ Gift card email sent successfully to:', firstCard.email);
+        console.log('   ✅ Gift card email sent successfully!');
+        console.log('   📧 Message ID:', result?.messageId || 'N/A');
+        console.log('   📊 Response:', result?.response || 'N/A');
       } catch (emailSendError) {
-        console.error('   ❌ sendEmail service failed:', emailSendError);
+        console.error('   ❌ Email send failed!');
+        console.error('   Error message:', emailSendError?.message);
+        console.error('   Error code:', emailSendError?.code);
         console.error('   Error details:', {
-          message: emailSendError.message,
-          code: emailSendError.code,
-          stack: emailSendError.stack,
+          message: emailSendError?.message,
+          code: emailSendError?.code,
+          responseCode: emailSendError?.responseCode,
+          command: emailSendError?.command,
         });
+        if (emailSendError?.stack) {
+          console.error('   Stack trace:', emailSendError.stack.substring(0, 500));
+        }
         throw emailSendError;
       }
     } catch (error) {
