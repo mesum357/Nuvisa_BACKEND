@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Query,
   Body,
   Param,
   UsePipes,
@@ -81,6 +82,26 @@ export class GiftCardController {
       );
     } catch (error) {
       callHTTPException(error.message);
+    }
+  }
+
+  // TEST: List recent gift cards by email (local testing only)
+  @Get("test-list")
+  async listGiftCards(@Query('email') email?: string): Promise<any> {
+    try {
+      const where: any = {};
+      if (email) where.email = email;
+      const items = await (this as any).giftCardService['giftCardModel'].findAll({
+        where,
+        order: [['purchased_at', 'DESC']],
+        limit: 50,
+      });
+      return {
+        status: 'success',
+        results: items.map((i: any) => ({ code: i.code, email: i.email, amount: i.amount, purchased_at: i.purchased_at, is_used: i.is_used })),
+      };
+    } catch (err) {
+      callHTTPException(err.message);
     }
   }
 }

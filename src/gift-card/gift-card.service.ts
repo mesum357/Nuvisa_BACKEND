@@ -106,6 +106,10 @@ export class GiftCardService {
       // Send email with all codes
       await this.sendGiftCardEmail(giftCards);
 
+      // Log purchase group and codes for easier tracing in logs
+      console.log('   📦 Purchase group ID:', purchase_group_id);
+      console.log('   🧾 Created codes:', giftCards.map(gc => gc.code).join(', '));
+
       // Return the first gift card for backward compatibility
       return giftCards[0];
     } catch (error) {
@@ -312,11 +316,21 @@ export class GiftCardService {
       console.log('   📏 Email body length:', finalEmailBody?.length || 0, 'characters');
       
       try {
+        // Always append a clear list of codes at the end of the email to guarantee visibility
+        const appendedCodesHtml = `
+          <div style="margin-top:16px;padding:12px;border-radius:8px;background:#f7f7fb;">
+            <h3 style="margin:0 0 8px 0;color:#333;font-family:Arial, sans-serif;">Your gift card code${codes.length>1? 's' : ''}:</h3>
+            ${codes.map(c=>`<div style=\"padding:8px 0;font-family:'Courier New',monospace;font-size:20px;color:#000;\">${c}</div>`).join('')}
+          </div>
+        `;
+
+        const bodyWithAppendedCodes = `${finalEmailBody}${appendedCodesHtml}`;
+
         const result = await sendEmail(
           {
             emailAddress: firstCard.email,
             subject,
-            body: finalEmailBody,
+            body: bodyWithAppendedCodes,
             excludeDecorativeImage: false,
             inlineImages: [
               {

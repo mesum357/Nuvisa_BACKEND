@@ -619,10 +619,19 @@ export class StripeService {
       console.log("🔍 Payment success handler - metadata:", JSON.stringify(data.metadata || {}));
       
       const paymentTypes = paymentType.split(',').map(t => t.trim()).filter(t => t);
-      const hasGiftCard = paymentTypes.includes("gift_card");
-      const hasApplicationCreation = paymentTypes.includes("application_creation");
-      const hasInsurance = paymentTypes.includes("additional_traveler_insurance") || 
-                          paymentTypes.includes("traveler_insurance");
+      const metadata = data.metadata || {};
+
+      // Infer payment types from metadata when explicit paymentType is missing
+      let hasGiftCard = paymentTypes.includes("gift_card") || Boolean(
+        metadata.quantity || metadata.noOfGiftCards || metadata.noOfGiftCards === '0'
+      );
+
+      let hasApplicationCreation = paymentTypes.includes("application_creation");
+
+      let hasInsurance = paymentTypes.includes("additional_traveler_insurance") ||
+        paymentTypes.includes("traveler_insurance") || Boolean(
+          metadata.insurance === 'true' || metadata.paymentType?.toString().includes('insurance') || metadata.insurancePaymentAmount
+        );
       
       console.log("🔍 Parsed payment types:", { 
         paymentTypes, 
@@ -632,10 +641,15 @@ export class StripeService {
         paymentMethodTypes: [hasGiftCard && "GIFT_CARD", hasApplicationCreation && "APPLICATION_CREATION", hasInsurance && "INSURANCE"].filter(Boolean)
       });
 
-      // Early return if nothing to process
+      // If nothing detected, try to infer application creation from other metadata hints
       if (!hasGiftCard && !hasApplicationCreation && !hasInsurance) {
-        console.warn("⚠️  WARNING: No payment types detected!");
-        console.warn("   Defaulting to application_creation for backward compatibility");
+        console.warn("⚠️  WARNING: No payment types detected! Attempting inference from metadata...");
+        if (metadata.visaTypeId || metadata.travellers || metadata.applicationId) {
+          hasApplicationCreation = true;
+          console.log("🔍 Inferred application creation from metadata (visaTypeId/travellers/applicationId)");
+        } else {
+          console.warn("⚠️  No clear indicators for application creation; skipping application creation to avoid accidental app creation.");
+        }
       }
 
       // Handle gift card purchases (can be combined with other payment types)
