@@ -98,5 +98,5 @@ export default {
 
   // CORS Configuration
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://localhost:3002,http://localhost:4000",
-  ALLOW_ORIGIN_NOAUTH: process.env.ALLOW_ORIGIN_NOAUTH || "http://localhost:3002",
+  ALLOW_ORIGIN_NOAUTH: process.env.ALLOW_ORIGIN_NOAUTH || "http://localhost:3001,http://localhost:3000,https://nuvisa-admin-updated.vercel.app,https://nuvisa-admin.vercel.app",
 };

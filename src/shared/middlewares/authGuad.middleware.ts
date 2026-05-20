@@ -32,7 +32,25 @@ export class AuthGuard implements CanActivate {
     try {
       const originHeader = (request.headers["x-admin-origin"] as string) || (request.headers["origin"] as string) || (request.headers["referer"] as string) || undefined;
       const adminProxy = request.headers["x-admin-proxy"] === "1";
-      const allowList = (process.env.ALLOW_ORIGIN_NOAUTH || "http://localhost:3001,http://localhost:3000").split(",").map((o) => o.trim());
+      const defaultAllowList = [
+        "http://localhost:3001",
+        "http://localhost:3000",
+        "https://nuvisa-admin-updated.vercel.app",
+        "https://nuvisa-admin.vercel.app",
+      ];
+      const allowList = (process.env.ALLOW_ORIGIN_NOAUTH ? process.env.ALLOW_ORIGIN_NOAUTH.split(",") : defaultAllowList)
+        .map((o) => o.trim())
+        .filter(Boolean);
+
+      // Ensure admin hosts are always allowed for proxy access.
+      [
+        "https://nuvisa-admin-updated.vercel.app",
+        "https://nuvisa-admin.vercel.app",
+      ].forEach((origin) => {
+        if (!allowList.includes(origin)) {
+          allowList.push(origin);
+        }
+      });
       
       console.log('AuthGuard: Origin check:', { originHeader, adminProxy, allowList });
       
