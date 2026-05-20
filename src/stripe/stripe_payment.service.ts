@@ -193,7 +193,6 @@ export class StripeService {
       } else {
         authResponse = {
           message: "Using existing session for insurance payment",
-          token: "existing_session_reused",
         };
       }
 
@@ -428,7 +427,6 @@ export class StripeService {
       } else {
         authResponse = {
           message: "Using existing session for insurance payment",
-          token: "existing_session_reused",
         };
       }
 
