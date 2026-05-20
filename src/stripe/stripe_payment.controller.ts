@@ -212,4 +212,34 @@ export class StripeController {
       callHTTPException(error.message);
     }
   }
+
+  // TEST: Trigger gift card handling directly (bypasses Stripe signature)
+  @Post("test-giftcard")
+  @UsePipes(ValidationPipe)
+  async testGiftCardPayment(@Body() body: any): Promise<any> {
+    try {
+      const mockOrderId = body.orderId || `ORD${String(Math.floor(Math.random() * 900000) + 100000)}`;
+
+      const mockPaymentData = {
+        metadata: {
+          paymentType: body.paymentType || "gift_card",
+          email: body.email,
+          amount: body.amount,
+          quantity: body.quantity || body.noOfGiftCards || 1,
+          orderId: mockOrderId,
+        },
+      };
+
+      const result = await this.stripeService.handlePaymentSuccess(mockPaymentData as any);
+
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        result,
+        "Gift card test payment processed"
+      );
+    } catch (error) {
+      console.error("Test gift card payment error:", error);
+      callHTTPException(error.message);
+    }
+  }
 }

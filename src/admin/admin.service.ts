@@ -1130,7 +1130,7 @@ export class AdminService {
       <div style="font-family: Arial, sans-serif; color: #111;">
         <h2 style="color: #7350FF;">Insurance purchase successful</h2>
         <p>Thank you for purchasing your NUvisa insurance certificate (${amountText}).</p>
-        <p>Your payment has been recorded${data.applicationId ? ' on your existing application' : ''}. No new visa application was created.</p>
+        <p>Your payment has been recorded${data.applicationId ? ' on your existing application.' : '.'}</p>
         ${data.orderId ? `<p><strong>Reference:</strong> ${data.orderId}</p>` : ''}
         <p>If you have questions, reply to this email or contact our support team.</p>
         <p>— Team NUvisa</p>
