@@ -63,9 +63,15 @@ async function bootstrap() {
   // CORS Configuration
   const allowedOrigins = Env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
   
-  // Add Vercel URL if not already in environment
+  // Add Vercel URLs if not already in environment
   if (!allowedOrigins.includes('https://nuvisa-fe.vercel.app')) {
     allowedOrigins.push('https://nuvisa-fe.vercel.app');
+  }
+  if (!allowedOrigins.includes('https://nuvisa-admin-updated.vercel.app')) {
+    allowedOrigins.push('https://nuvisa-admin-updated.vercel.app');
+  }
+  if (!allowedOrigins.includes('https://nuvisa-admin.vercel.app')) {
+    allowedOrigins.push('https://nuvisa-admin.vercel.app');
   }
   
   app.enableCors({
