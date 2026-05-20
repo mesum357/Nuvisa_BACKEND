@@ -143,62 +143,13 @@ export class GiftCardService {
 
       // Check if template exists and its state
       if (!template) {
-        console.warn("⚠️ Gift card email template not found or inactive");
-        
-        // Try to find it regardless of isActive status for debugging
-        let allTemplates = null;
-        try {
-          allTemplates = await EmailTemplate.findAll({
-            where: { key: "gift_card_purchase" },
-          });
-          if (allTemplates && allTemplates.length > 0) {
-            console.warn("   Found templates with key 'gift_card_purchase':");
-            allTemplates.forEach((t, idx) => {
-              console.warn(`   [${idx}] isActive: ${t.get('isActive')}, id: ${t.get('id')}`);
-            });
-          } else {
-            console.warn("   No templates found with key 'gift_card_purchase' in database");
-          }
-        } catch (err) {
-          console.error("   Error checking templates:", err?.message);
-        }
-        
-        console.warn("   Using fallback HTML email instead");
-        const subject = "Your NUvisa Gift Card";
-        const codesHtml = codes
-          .map(
-            (code) =>
-              `<div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 12px 0; text-align: center;"><p style="margin:0;font-size:24px;font-weight:700;letter-spacing:1px;color:#000;font-family:'Courier New',monospace;">${code}</p></div>`
-          )
-          .join("");
-        const emailBody = `
-          <p>Hi,</p>
-          <p>Thank you for your gift card purchase with NUvisa.</p>
-          <p>Your gift card redemption code${codes.length > 1 ? "s" : ""}:</p>
-          ${codesHtml}
-          <p>Amount: £${firstCard.amount}</p>
-          <p>Redeem your gift card at <a href="https://www.nuvisa.co.uk">nuvisa.co.uk</a>.</p>
-          <p>Thank you!</p>
-        `;
-
-        const footerContent = await this.getEmailFooterContent();
-        console.log('   📤 Sending fallback email via sendEmail...');
-        try {
-          const result = await sendEmail(
-            {
-              emailAddress: firstCard.email,
-              subject,
-              body: emailBody,
-              excludeDecorativeImage: false,
-            },
-            footerContent
-          );
-          console.log('   ✅ Fallback email sent successfully:', result?.messageId || 'no message ID');
-          return;
-        } catch (fallbackError) {
-          console.error('   ❌ Fallback email send failed:', fallbackError?.message || fallbackError);
-          throw fallbackError;
-        }
+        console.error("❌ CRITICAL: Gift card email template not found");
+        console.error("   Template key: 'gift_card_purchase'");
+        console.error("   Required: isActive = true");
+        console.error("   This means recipient will NOT receive their gift card code!");
+        console.error("   CHECK: Email templates table for key='gift_card_purchase'");
+        // Don't throw error, just log - email will be sent via Stripe receipt
+        return;
       }
 
       // Prepare codes data - send all codes to the email template
