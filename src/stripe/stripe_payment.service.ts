@@ -683,21 +683,29 @@ export class StripeService {
           });
         } else {
           try {
-            await this.giftCardService.createGiftCard({
+            console.log('🎁 Starting gift card creation workflow...');
+            const giftCardResult = await this.giftCardService.createGiftCard({
               email,
               amount,
               quantity: quantity,
               stripe_session_id: stripeSessionId,
               stripe_payment_intent_id: stripePaymentIntentId,
             });
-            console.log(`✓ Gift card created with quantity ${quantity} and email sent successfully`);
+            console.log('✅ Gift card creation completed successfully');
+            console.log('   Gift Card ID:', giftCardResult?.id);
+            console.log('   Codes created:', quantity);
+            console.log('   Email recipient:', email);
           } catch (error) {
-            console.error("❌ Error creating gift card:", error);
-            console.error("❌ Gift card creation error details:", {
+            console.error("❌ Gift card creation failed!");
+            console.error("   Error message:", (error as any)?.message);
+            console.error("   Error code:", (error as any)?.code);
+            console.error("   Gift card creation error details:", {
               email,
               amount,
-              errorMessage: error.message,
-              errorStack: error.stack,
+              quantity,
+              errorMessage: (error as any)?.message,
+              errorCode: (error as any)?.code,
+              errorStack: (error as any)?.stack ? (error as any).stack.substring(0, 500) : 'N/A',
             });
             // Don't throw - allow payment to complete even if gift card creation fails
           }

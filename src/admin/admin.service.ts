@@ -1137,11 +1137,27 @@ export class AdminService {
       </div>
     `;
 
-    await sendEmail({
-      emailAddress: data.email,
-      subject: 'NUvisa — Insurance purchase confirmed',
-      body,
-    });
+    try {
+      // Get footer content for a complete email
+      const footerContent = await this.getEmailFooterContent();
+      await sendEmail({
+        emailAddress: data.email,
+        subject: 'NUvisa — Insurance purchase confirmed',
+        body,
+      }, footerContent);
+    } catch (error) {
+      console.error('Failed to send insurance confirmation email:', error?.message);
+      // Fall back to sending without footer
+      try {
+        await sendEmail({
+          emailAddress: data.email,
+          subject: 'NUvisa — Insurance purchase confirmed',
+          body,
+        });
+      } catch (fallbackError) {
+        console.error('Fallback email also failed:', fallbackError?.message);
+      }
+    }
   }
 
   /**

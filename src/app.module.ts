@@ -299,7 +299,10 @@ export class AppModule implements OnModuleInit {
   async initializeEmailTemplates() {
     try {
       const EmailTemplate = this.sequelize.models.EmailTemplate;
-      if (!EmailTemplate) return;
+      if (!EmailTemplate) {
+        console.warn('⚠️  EmailTemplate model not found during initialization');
+        return;
+      }
 
       // Define all email templates that should exist in the database
       const templatesToSync = [
@@ -355,21 +358,52 @@ export class AppModule implements OnModuleInit {
 
       // Check existing templates
       const existingTemplates = await EmailTemplate.findAll();
+      console.log(`📧 Found ${existingTemplates.length} existing email templates`);
+
+      // Log each existing template
+      existingTemplates.forEach((t: any) => {
+        const isActive = t.get('isActive') === true || t.get('isActive') === 1;
+        console.log(`   - ${t.get('key')}: isActive=${isActive}`);
+      });
+
       const existingKeys = new Set(existingTemplates.map(t => t.get('key') as string));
 
       // Only create missing templates - don't overwrite existing ones to preserve admin edits
       const templatesToCreate = templatesToSync.filter(t => !existingKeys.has(t.key));
       
       if (templatesToCreate.length > 0) {
+        console.log(`📝 Creating ${templatesToCreate.length} new email template(s)...`);
         await EmailTemplate.bulkCreate(templatesToCreate);
-        console.log(`Created ${templatesToCreate.length} new email template(s)`);
+        console.log(`✅ Created ${templatesToCreate.length} new email template(s):`);
+        templatesToCreate.forEach(t => {
+          console.log(`   - ${t.key} (${t.name})`);
+        });
+      } else {
+        console.log('✅ All email templates already exist');
       }
 
-      if (templatesToCreate.length === 0 && existingTemplates.length === templatesToSync.length) {
-        console.log('All email templates are already initialized');
+      // Verify gift_card_purchase template exists and is active
+      const giftCardTemplate = await EmailTemplate.findOne({
+        where: { key: 'gift_card_purchase' },
+      });
+      
+      if (!giftCardTemplate) {
+        console.error('❌ CRITICAL: gift_card_purchase template was not created!');
+      } else {
+        const isActive = giftCardTemplate.get('isActive') === true || giftCardTemplate.get('isActive') === 1;
+        console.log(`✅ gift_card_purchase template: isActive=${isActive}`);
+        
+        if (!isActive) {
+          console.warn('⚠️  gift_card_purchase template is INACTIVE - enabling it...');
+          await giftCardTemplate.update({ isActive: true });
+          console.log('✅ gift_card_purchase template is now ACTIVE');
+        }
       }
     } catch (error) {
-      console.error('Failed to initialize email templates:', error);
+      console.error('❌ Failed to initialize email templates:', error?.message);
+      if (error?.stack) {
+        console.error('   Stack:', error.stack.substring(0, 300));
+      }
     }
   }
 
