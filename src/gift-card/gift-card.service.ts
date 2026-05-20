@@ -136,8 +136,34 @@ export class GiftCardService {
       });
 
       if (!template) {
-        console.error("❌ Gift card email template not found");
-        // Don't throw error, just log - email will be sent via Stripe receipt
+        console.warn("⚠️ Gift card email template not found. Sending fallback gift card email.");
+        const subject = "Your NUvisa Gift Card";
+        const codesHtml = codes
+          .map(
+            (code) =>
+              `<div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 12px 0; text-align: center;"><p style="margin:0;font-size:24px;font-weight:700;letter-spacing:1px;color:#000;font-family:'Courier New',monospace;">${code}</p></div>`
+          )
+          .join("");
+        const emailBody = `
+          <p>Hi,</p>
+          <p>Thank you for your gift card purchase with NUvisa.</p>
+          <p>Your gift card redemption code${codes.length > 1 ? "s" : ""}:</p>
+          ${codesHtml}
+          <p>Amount: £${firstCard.amount}</p>
+          <p>Redeem your gift card at <a href="https://www.nuvisa.co.uk">nuvisa.co.uk</a>.</p>
+          <p>Thank you!</p>
+        `;
+
+        const footerContent = await this.getEmailFooterContent();
+        await sendEmail(
+          {
+            emailAddress: firstCard.email,
+            subject,
+            body: emailBody,
+            excludeDecorativeImage: false,
+          },
+          footerContent
+        );
         return;
       }
 
@@ -243,24 +269,39 @@ export class GiftCardService {
       const footerContent = await this.getEmailFooterContent();
 
       // Send email
-      await sendEmail(
-        {
-          emailAddress: firstCard.email,
-          subject,
-          body: finalEmailBody,
-          excludeDecorativeImage: false,
-          inlineImages: [
-            {
-              filename: "gift-card.png",
-              path: "https://www.nuvisa.co.uk/image/gitftnewcard.png",
-              cid: giftCardImageCid,
-            },
-          ],
-        },
-        footerContent
-      );
+      console.log('   📤 Calling sendEmail service...');
+      console.log('   📧 Recipient:', firstCard.email);
+      console.log('   📝 Subject:', subject);
+      console.log('   📎 Inline images: 1 (gift-card.png)');
       
-      console.log('   ✅ Gift card email sent successfully');
+      try {
+        await sendEmail(
+          {
+            emailAddress: firstCard.email,
+            subject,
+            body: finalEmailBody,
+            excludeDecorativeImage: false,
+            inlineImages: [
+              {
+                filename: "gift-card.png",
+                path: "https://www.nuvisa.co.uk/image/gitftnewcard.png",
+                cid: giftCardImageCid,
+              },
+            ],
+          },
+          footerContent
+        );
+        
+        console.log('   ✅ Gift card email sent successfully to:', firstCard.email);
+      } catch (emailSendError) {
+        console.error('   ❌ sendEmail service failed:', emailSendError);
+        console.error('   Error details:', {
+          message: emailSendError.message,
+          code: emailSendError.code,
+          stack: emailSendError.stack,
+        });
+        throw emailSendError;
+      }
     } catch (error) {
       console.error("❌ Error sending gift card email:", error);
       console.error("📧 Gift card email details:", {
