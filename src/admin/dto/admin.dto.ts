@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsDateString, IsEnum, IsIn, IsArray, ArrayNotEmpty, ArrayUnique } from 'class-validator';
+import { IsOptional, IsString, IsDateString, IsEnum, IsIn, IsArray, ArrayNotEmpty, ArrayUnique, IsBoolean } from 'class-validator';
 
 export enum ApplicationStatus {
   NEW = 'new',
@@ -64,8 +64,9 @@ export class UpdateApplicationStatusDto {
   @IsString()
   applicationId: string;
 
-  @IsEnum(ApplicationStatus)
-  status: ApplicationStatus;
+  /** Backend stores workflow status (e.g. decision_made); not limited to ApplicationStatus enum. */
+  @IsString()
+  status: string;
 
   @IsOptional()
   @IsString()
@@ -74,6 +75,31 @@ export class UpdateApplicationStatusDto {
   @IsOptional()
   @IsString()
   adminId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  sendNotification?: boolean;
+
+  /** Admin UI key: DECISION_MADE | PASSPORT_DISPATCHED | PASSPORT_READY */
+  @IsOptional()
+  @IsString()
+  adminStatusKey?: string;
+
+  @IsOptional()
+  @IsString()
+  statusDisplay?: string;
+
+  @IsOptional()
+  @IsString()
+  statusMessage?: string;
+
+  @IsOptional()
+  @IsString()
+  newStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  oldStatus?: string;
 }
 
 export class GetApplicationDetailsDto {

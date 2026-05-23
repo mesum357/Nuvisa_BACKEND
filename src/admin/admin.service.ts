@@ -556,9 +556,25 @@ export class AdminService {
       }
 
       const oldStatus = application.applicationStatus;
+      const existingStepData =
+        application.stepData && typeof application.stepData === 'object'
+          ? application.stepData
+          : {};
+      const statusDisplay =
+        updateDto.statusDisplay ||
+        updateDto.newStatus ||
+        updateDto.statusMessage ||
+        null;
+      const adminStatusKey = updateDto.adminStatusKey || null;
+
       await application.update({
         applicationStatus: updateDto.status,
-        updatedAt: new Date()
+        stepData: {
+          ...existingStepData,
+          ...(adminStatusKey ? { adminStatusKey } : {}),
+          ...(statusDisplay ? { statusDisplay, statusMessage: updateDto.statusMessage || statusDisplay } : {}),
+        },
+        updatedAt: new Date(),
       });
 
       await this.logApplicationActivity({
@@ -577,7 +593,21 @@ export class AdminService {
       // Reload the application to get the updated values
       await application.reload();
 
+      const shouldNotify = updateDto.sendNotification !== false;
+      console.log('[status-update] saved', {
+        applicationId: updateDto.applicationId,
+        status: updateDto.status,
+        adminStatusKey,
+        statusDisplay,
+        sendNotification: shouldNotify,
+      });
+
       // Send email notification to user
+      if (!shouldNotify) {
+        console.log('[status-update] email skipped (sendNotification=false)');
+        return this.formatApplicationResponse(application);
+      }
+
       try {
         const statusMessages = {
           'submitted': 'Your application has been submitted and is being reviewed.',
@@ -588,10 +618,20 @@ export class AdminService {
           'approved': 'Congratulations! Your visa application has been approved.',
           'completed': 'Your visa application has been completed successfully.',
           'rejected': 'Unfortunately, your visa application has been rejected. Please contact us for more information.',
-          'cancelled': 'Your visa application has been cancelled.'
+          'cancelled': 'Your visa application has been cancelled.',
+          'decision_made':
+            updateDto.statusMessage ||
+            'A decision has been made on your passport application.',
         };
 
-        const message = statusMessages[updateDto.status] || `Your application status has been updated to: ${updateDto.status}`;
+        const message =
+          updateDto.statusMessage ||
+          statusDisplay ||
+          statusMessages[updateDto.status] ||
+          `Your application status has been updated to: ${updateDto.status}`;
+        const emailStatusLabel =
+          statusDisplay ||
+          (updateDto.status || '').replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
         
         // Try to use database template
         try {
@@ -620,8 +660,8 @@ export class AdminService {
               'status_update',
               {
                 userName: userName,
-                status: updateDto.status.toUpperCase(),
-                oldStatus: oldStatus || 'Unknown',
+                status: emailStatusLabel,
+                oldStatus: updateDto.oldStatus || oldStatus || 'Unknown',
                 message: message,
                 notes: updateDto.notes || '',
               },
@@ -639,8 +679,8 @@ export class AdminService {
                 templateName: template.name,
                 templateVariables: {
                   userName: userName,
-                  status: updateDto.status.toUpperCase(),
-                  oldStatus: oldStatus || 'Unknown',
+                  status: emailStatusLabel,
+                  oldStatus: updateDto.oldStatus || oldStatus || 'Unknown',
                   message: message,
                   notes: updateDto.notes || '',
                 },
@@ -655,12 +695,12 @@ export class AdminService {
             await this.sendEmailAndLog(
               {
                 emailAddress: application.email,
-                subject: `Visa Application Status Update - ${updateDto.status.toUpperCase()}`,
+                subject: `Visa Application Status Update - ${emailStatusLabel}`,
                 body: `
                   <p>Dear Applicant,</p>
                   <p>Your visa application status has been updated:</p>
-                  <p><strong>Previous Status:</strong> ${oldStatus || 'Unknown'}</p>
-                  <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
+                  <p><strong>Previous Status:</strong> ${updateDto.oldStatus || oldStatus || 'Unknown'}</p>
+                  <p><strong>New Status:</strong> ${emailStatusLabel}</p>
                   <p><strong>Message:</strong> ${message}</p>
                   ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
                 `,
@@ -676,12 +716,12 @@ export class AdminService {
           await this.sendEmailAndLog(
             {
               emailAddress: application.email,
-              subject: `Visa Application Status Update - ${updateDto.status.toUpperCase()}`,
+              subject: `Visa Application Status Update - ${emailStatusLabel}`,
               body: `
                 <p>Dear Applicant,</p>
                 <p>Your visa application status has been updated:</p>
-                <p><strong>Previous Status:</strong> ${oldStatus || 'Unknown'}</p>
-                <p><strong>New Status:</strong> ${updateDto.status.toUpperCase()}</p>
+                <p><strong>Previous Status:</strong> ${updateDto.oldStatus || oldStatus || 'Unknown'}</p>
+                <p><strong>New Status:</strong> ${emailStatusLabel}</p>
                 <p><strong>Message:</strong> ${message}</p>
                 ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
               `,
@@ -692,9 +732,14 @@ export class AdminService {
           );
         }
         
-        console.log(`Email notification sent to ${application.email} for status change from ${oldStatus} to ${updateDto.status}`);
+        console.log('[status-update] email sent', {
+          to: application.email,
+          from: oldStatus,
+          toStatus: updateDto.status,
+          label: emailStatusLabel,
+        });
       } catch (emailError) {
-        console.error('Failed to send email notification:', emailError);
+        console.error('[status-update] email failed', emailError);
         // Don't throw error here, just log it
       }
 
@@ -1242,6 +1287,9 @@ export class AdminService {
       return `ORD${numericTail(rawOrderId, 6)}`;
     };
 
+    const stepMeta =
+      appData.stepData && typeof appData.stepData === 'object' ? appData.stepData : {};
+
     return {
       ...appData,
       applicationId,
@@ -1249,7 +1297,12 @@ export class AdminService {
       orderId,
       formattedApplicationId: formatApplicationId(applicationId),
       formattedOrderId: formatOrderId(orderId),
-      code: formatOrderId(orderId) || formatApplicationId(applicationId)
+      code: formatOrderId(orderId) || formatApplicationId(applicationId),
+      status: appData.applicationStatus,
+      applicationStatus: appData.applicationStatus,
+      adminStatusKey: stepMeta.adminStatusKey || null,
+      statusDisplay: stepMeta.statusDisplay || stepMeta.statusMessage || null,
+      statusMessage: stepMeta.statusMessage || stepMeta.statusDisplay || null,
     };
   }
 

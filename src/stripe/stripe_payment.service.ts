@@ -619,6 +619,14 @@ export class StripeService {
       const paymentTypes = paymentType.split(',').map(t => t.trim()).filter(t => t);
       const metadata = data.metadata || {};
 
+      const checkoutType = String(
+        metadata.checkoutType || metadata.simplePaymentType || ""
+      ).toLowerCase();
+      const isInsuranceOnlyCheckout =
+        checkoutType === "insurance_only" ||
+        checkoutType === "insurance" ||
+        (metadata.insuranceOnly === "true" && !metadata.applicationId);
+
       // Infer payment types from metadata when explicit paymentType is missing
       let hasGiftCard = paymentTypes.includes("gift_card") || Boolean(
         metadata.quantity || metadata.noOfGiftCards || metadata.noOfGiftCards === '0'
@@ -630,6 +638,31 @@ export class StripeService {
         paymentTypes.includes("traveler_insurance") || Boolean(
           metadata.insurance === 'true' || metadata.paymentType?.toString().includes('insurance') || metadata.insurancePaymentAmount
         );
+
+      // Insurance-only checkout: email + success only — never create an application or decrement expert spots
+      if (isInsuranceOnlyCheckout && hasInsurance && !hasGiftCard) {
+        hasApplicationCreation = false;
+        const email = metadata.email || data.customer_details?.email;
+        const paymentAmount = Number(metadata.amountGBP ?? metadata.amount ?? 0);
+        const orderId = metadata.orderId || data.id;
+        console.log("[checkout] insurance_only path", { email, orderId, paymentAmount });
+
+        if (email && Number.isFinite(paymentAmount) && paymentAmount > 0) {
+          try {
+            await this.adminService.sendInsurancePurchaseConfirmation({
+              email,
+              amount: paymentAmount,
+              orderId: String(orderId),
+            });
+            console.log("[checkout] insurance_only email sent", { email });
+          } catch (emailErr) {
+            console.error("[checkout] insurance_only email failed", emailErr);
+          }
+        } else {
+          console.warn("[checkout] insurance_only missing email or amount", { email, paymentAmount });
+        }
+        return;
+      }
       
       console.log("🔍 Parsed payment types:", { 
         paymentTypes, 
