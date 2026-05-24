@@ -1,7 +1,18 @@
 import { callHTTPException } from "../exceptions";
-import { transporter } from "./nodeMailer";
+import { getTransporter, resetSmtpTransporter } from "./nodeMailer";
 import { emailTemplates } from "../../email_templates";
 import { Env } from "../config";
+
+const SMTP_RETRYABLE_CODES = new Set([
+  "EDNS",
+  "ETIMEOUT",
+  "ESOCKET",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ENOTFOUND",
+]);
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const htmlToPlainText = (html: string): string => {
   if (!html) return "";
@@ -119,8 +130,34 @@ export async function sendEmail(emailMeta, footerContent?: any) {
       mailOptions.attachments = attachments;
     }
 
-    const result = await transporter.sendMail(mailOptions);
-    return result;
+    const transporter = await getTransporter();
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await transporter.sendMail(mailOptions);
+      } catch (sendErr) {
+        lastError = sendErr as Error;
+        const code = (sendErr as { code?: string })?.code;
+        const retryable =
+          SMTP_RETRYABLE_CODES.has(code || "") ||
+          /ETIMEOUT|queryA|ENOTFOUND|getaddrinfo/i.test(
+            (sendErr as Error).message || "",
+          );
+
+        if (!retryable || attempt === 3) {
+          throw sendErr;
+        }
+
+        console.warn(
+          `📧 SMTP attempt ${attempt} failed (${code || "unknown"}), retrying…`,
+        );
+        resetSmtpTransporter();
+        await sleep(attempt * 1500);
+      }
+    }
+
+    throw lastError;
   } catch (err) {
     console.error("❌ Failed to send email:", err);
     console.error("📧 Email details:", {
@@ -132,6 +169,18 @@ export async function sendEmail(emailMeta, footerContent?: any) {
       smtpUser: Env.SMTP_USER || Env.MAILER_EMAIL || "not set",
     });
     
+    if (
+      err.code === "EDNS" ||
+      err.code === "ETIMEOUT" ||
+      /queryA ETIMEOUT|ENOTFOUND|getaddrinfo/i.test(err.message || "")
+    ) {
+      throw new Error(
+        `Failed to send email: Cannot reach SMTP server (${Env.SMTP_HOST || "mail.privateemail.com"}). ` +
+          `DNS or network timeout. For local dev, set SMTP_HOST_IP in .env to the server IP, ` +
+          `or SMTP_DNS_SERVERS=8.8.8.8,1.1.1.1. Original: ${err.message}`,
+      );
+    }
+
     // Provide helpful error message for authentication failures
     if (err.code === 'EAUTH' || err.responseCode === 535) {
       const errorMsg = `SMTP Authentication Failed: Please verify your SMTP credentials in .env file.

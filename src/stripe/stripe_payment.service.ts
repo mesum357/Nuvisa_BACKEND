@@ -401,7 +401,21 @@ export class StripeService {
 
   async createPaymentIntent(checkoutData: checkoutSessionDto): Promise<any> {
     try {
-      const stripe = Stripe(Env.stripeSecretKey);
+      const secretKey = String(
+        process.env.STRIPE_SECRET_KEY || Env.stripeSecretKey || ""
+      ).trim();
+      const isPlaceholderKey =
+        !secretKey ||
+        secretKey.includes("your_stripe_secret_key") ||
+        secretKey.includes("sk_test_your") ||
+        secretKey === "sk_test_";
+      if (!secretKey.startsWith("sk_") || isPlaceholderKey) {
+        callHTTPException(
+          "Stripe is not configured on the server. Set STRIPE_SECRET_KEY in NUvisa-backend/.env to your Secret key (starts with sk_test_ or sk_live_), then restart the backend."
+        );
+      }
+
+      const stripe = Stripe(secretKey);
 
       let { email, amount, paymentType } = checkoutData;
 
@@ -410,6 +424,11 @@ export class StripeService {
         .toLowerCase();
 
       const amountInCents = Math.round(Number(amount) * 100);
+      if (!Number.isFinite(amountInCents) || amountInCents < 50) {
+        callHTTPException(
+          "Payment amount must be at least £0.50 (or equivalent in selected currency)."
+        );
+      }
 
       let authResponse = {};
 
@@ -434,9 +453,7 @@ export class StripeService {
         amount: amountInCents,
         currency: currency,
         payment_method_types: ["card"],
-        metadata: {
-          ...checkoutData,
-        },
+        metadata: metadataForStripeCheckoutSession(checkoutData),
         receipt_email: email,
       });
 
@@ -619,6 +636,14 @@ export class StripeService {
       const paymentTypes = paymentType.split(',').map(t => t.trim()).filter(t => t);
       const metadata = data.metadata || {};
 
+      const checkoutType = String(
+        metadata.checkoutType || metadata.simplePaymentType || ""
+      ).toLowerCase();
+      const isInsuranceOnlyCheckout =
+        checkoutType === "insurance_only" ||
+        checkoutType === "insurance" ||
+        (metadata.insuranceOnly === "true" && !metadata.applicationId);
+
       // Infer payment types from metadata when explicit paymentType is missing
       let hasGiftCard = paymentTypes.includes("gift_card") || Boolean(
         metadata.quantity || metadata.noOfGiftCards || metadata.noOfGiftCards === '0'
@@ -630,6 +655,31 @@ export class StripeService {
         paymentTypes.includes("traveler_insurance") || Boolean(
           metadata.insurance === 'true' || metadata.paymentType?.toString().includes('insurance') || metadata.insurancePaymentAmount
         );
+
+      // Insurance-only checkout: email + success only — never create an application or decrement expert spots
+      if (isInsuranceOnlyCheckout && hasInsurance && !hasGiftCard) {
+        hasApplicationCreation = false;
+        const email = metadata.email || data.customer_details?.email;
+        const paymentAmount = Number(metadata.amountGBP ?? metadata.amount ?? 0);
+        const orderId = metadata.orderId || data.id;
+        console.log("[checkout] insurance_only path", { email, orderId, paymentAmount });
+
+        if (email && Number.isFinite(paymentAmount) && paymentAmount > 0) {
+          try {
+            await this.adminService.sendInsurancePurchaseConfirmation({
+              email,
+              amount: paymentAmount,
+              orderId: String(orderId),
+            });
+            console.log("[checkout] insurance_only email sent", { email });
+          } catch (emailErr) {
+            console.error("[checkout] insurance_only email failed", emailErr);
+          }
+        } else {
+          console.warn("[checkout] insurance_only missing email or amount", { email, paymentAmount });
+        }
+        return;
+      }
       
       console.log("🔍 Parsed payment types:", { 
         paymentTypes, 
@@ -704,7 +754,8 @@ export class StripeService {
               stripe_payment_intent_id: stripePaymentIntentId,
             });
             console.log('✅ Gift card creation completed successfully');
-            console.log('   Gift Card ID:', giftCardResult?.id);
+            console.log('   Gift Card ID:', giftCardResult?.primary?.id);
+            console.log('   Email sent:', giftCardResult?.emailSent);
             console.log('   Codes created:', quantity);
             console.log('   Email recipient:', email);
           } catch (error) {

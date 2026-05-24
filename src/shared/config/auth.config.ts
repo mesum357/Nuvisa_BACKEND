@@ -4,9 +4,10 @@ const fs = require("fs");
 const envPath = path.resolve(__dirname, "../../../.env");
 
 if (fs.existsSync(envPath)) {
-  require("dotenv").config({ path: envPath });
+  // override: true so values in NUvisa-backend/.env win over empty OS-level vars
+  require("dotenv").config({ path: envPath, override: true });
 } else {
-  require("dotenv").config();
+  require("dotenv").config({ override: true });
 }
 
 // Derive DB settings from DATABASE_URL if provided; fallback to individual vars

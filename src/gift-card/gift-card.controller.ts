@@ -11,7 +11,11 @@ import {
   Req,
 } from "@nestjs/common";
 import { GiftCardService } from "./gift-card.service";
-import { RedeemGiftCardDto, ValidateGiftCardDto } from "./dto/gift-card.dto";
+import {
+  FulfillGiftCardDto,
+  RedeemGiftCardDto,
+  ValidateGiftCardDto,
+} from "./dto/gift-card.dto";
 import {
   GetObjectTemplateForAPIResponseGeneral,
   ObjectTemplateForAPIResponseGeneral,
@@ -23,6 +27,30 @@ import { AuthGuard } from "src/shared/middlewares/authGuad.middleware";
 @Controller("gift-card")
 export class GiftCardController {
   constructor(private readonly giftCardService: GiftCardService) {}
+
+  @Post("fulfill-purchase")
+  @UsePipes(ValidationPipe)
+  async fulfillGiftCardPurchase(@Body() dto: FulfillGiftCardDto): Promise<any> {
+    try {
+      const result = await this.giftCardService.fulfillGiftCardPurchase({
+        email: dto.email,
+        amount: dto.amount,
+        quantity: dto.quantity,
+        stripe_session_id: dto.stripe_session_id,
+        stripe_payment_intent_id: dto.stripe_payment_intent_id,
+      });
+
+      return GetObjectTemplateForAPIResponseGeneral(
+        EnumAPIResponseStatusType.SUCCESS,
+        result,
+        result.created
+          ? "Gift card created and confirmation email sent"
+          : "Gift card confirmation email resent",
+      );
+    } catch (error) {
+      callHTTPException(error.message);
+    }
+  }
 
   @Post("validate")
   @UsePipes(ValidationPipe)

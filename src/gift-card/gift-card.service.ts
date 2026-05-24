@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
+import { Op } from "sequelize";
 import { Sequelize } from "sequelize-typescript";
 import { v4 as uuidv4 } from "uuid";
 import { GiftCard } from "./gift-card.entity";
@@ -66,13 +67,16 @@ export class GiftCardService {
     quantity?: number;
     stripe_session_id?: string;
     stripe_payment_intent_id?: string;
-  }): Promise<GiftCard> {
+  }): Promise<{ primary: GiftCard; emailSent: boolean }> {
     try {
-      const quantity = data.quantity || 1;
-      
+      const quantity = Math.max(1, Number(data.quantity) || 1);
+      const totalAmount = this.parseGiftCardAmount(data.amount);
+      const perCardAmount = (totalAmount / quantity).toFixed(2);
+
       console.log('🎁 Creating Gift Card:');
       console.log('   📧 Email:', data.email);
-      console.log('   💰 Amount:', data.amount);
+      console.log('   💰 Total amount:', data.amount);
+      console.log('   💳 Per-card amount:', perCardAmount);
       console.log('   📦 Quantity (number of gift cards):', quantity);
       console.log('   🔑 Stripe Session ID:', data.stripe_session_id || 'N/A');
       console.log('   💳 Stripe Payment Intent ID:', data.stripe_payment_intent_id || 'N/A');
@@ -90,7 +94,7 @@ export class GiftCardService {
         const giftCard = await this.giftCardModel.create({
           code,
           email: data.email,
-          amount: data.amount,
+          amount: perCardAmount,
           stripe_session_id: data.stripe_session_id || null,
           stripe_payment_intent_id: data.stripe_payment_intent_id || null,
           purchased_at: new Date(),
@@ -103,15 +107,13 @@ export class GiftCardService {
         console.log(`   ✅ Gift card ${i + 1}/${quantity} created in database with ID:`, giftCard.id);
       }
 
-      // Send email with all codes
-      await this.sendGiftCardEmail(giftCards);
+      const emailSent = await this.sendGiftCardEmails(giftCards);
 
       // Log purchase group and codes for easier tracing in logs
       console.log('   📦 Purchase group ID:', purchase_group_id);
       console.log('   🧾 Created codes:', giftCards.map(gc => gc.code).join(', '));
 
-      // Return the first gift card for backward compatibility
-      return giftCards[0];
+      return { primary: giftCards[0], emailSent };
     } catch (error) {
       console.error("Error creating gift card:", error);
       callHTTPException(`Failed to create gift card: ${error.message}`);
@@ -119,218 +121,243 @@ export class GiftCardService {
   }
 
   /**
-   * Send gift card email with redemption code(s)
+   * Idempotent fulfillment after Stripe checkout (webhook backup for client redirect).
    */
-  private async sendGiftCardEmail(giftCards: GiftCard[]): Promise<void> {
-    // Handle both single gift card and array for backward compatibility
+  async fulfillGiftCardPurchase(data: {
+    email: string;
+    amount: string;
+    quantity?: number;
+    stripe_session_id?: string;
+    stripe_payment_intent_id?: string;
+  }): Promise<{ codes: string[]; created: boolean; emailSent: boolean }> {
+    const quantity = Math.max(1, Number(data.quantity) || 1);
+    const sessionId = data.stripe_session_id?.trim() || null;
+    const paymentIntentId = data.stripe_payment_intent_id?.trim() || null;
+
+    const lookupConditions: Array<Record<string, string>> = [];
+    if (sessionId) {
+      lookupConditions.push({ stripe_session_id: sessionId });
+    }
+    if (paymentIntentId) {
+      lookupConditions.push({ stripe_payment_intent_id: paymentIntentId });
+    }
+
+    let existing: GiftCard[] = [];
+    if (lookupConditions.length > 0) {
+      existing = await this.giftCardModel.findAll({
+        where: { [Op.or]: lookupConditions },
+        order: [["purchased_at", "ASC"]],
+      });
+    }
+
+    if (existing.length > 0) {
+      console.log(
+        `🎁 Gift card fulfill: resending email for ${existing.length} existing code(s)`,
+      );
+      const emailSent = await this.sendGiftCardEmails(existing);
+      return {
+        codes: existing.map((card) => card.code),
+        created: false,
+        emailSent,
+      };
+    }
+
+    console.log("🎁 Gift card fulfill: creating new gift card(s)");
+    const { primary: firstCard, emailSent } = await this.createGiftCard({
+      email: data.email,
+      amount: data.amount,
+      quantity,
+      stripe_session_id: sessionId || undefined,
+      stripe_payment_intent_id: paymentIntentId || undefined,
+    });
+
+    const groupId = firstCard.purchase_group_id;
+    const createdCards = groupId
+      ? await this.giftCardModel.findAll({
+          where: { purchase_group_id: groupId },
+          order: [["purchased_at", "ASC"]],
+        })
+      : [firstCard];
+
+    return {
+      codes: createdCards.map((card) => card.code),
+      created: true,
+      emailSent,
+    };
+  }
+
+  /**
+   * Send one email per purchase with all redemption codes from that purchase.
+   * @returns true if the email was accepted by SMTP
+   */
+  private async sendGiftCardEmails(giftCards: GiftCard[]): Promise<boolean> {
     const giftCardsArray = Array.isArray(giftCards) ? giftCards : [giftCards];
-    const firstCard = giftCardsArray[0];
-    const codes = giftCardsArray.map(gc => gc.code);
-    
+    if (giftCardsArray.length === 0) {
+      return false;
+    }
+
+    return this.sendGiftCardPurchaseEmail(giftCardsArray);
+  }
+
+  private buildGiftCardCodesHtml(codes: string[]): string {
+    const codeBoxStyle =
+      "background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 12px 0; text-align: center;";
+    const codeTextStyle =
+      "margin:0;font-size:24px;font-weight:700;letter-spacing:1px;color:#000;font-family:'Courier New',monospace;";
+
+    if (codes.length === 1) {
+      return `<div style="${codeBoxStyle}"><p style="${codeTextStyle}">${codes[0]}</p></div>`;
+    }
+
+    return codes
+      .map(
+        (code, index) =>
+          `<div style="${codeBoxStyle}"><p style="margin:0 0 6px;font-size:12px;color:#666;">Gift card ${index + 1}</p><p style="${codeTextStyle}">${code}</p></div>`,
+      )
+      .join("");
+  }
+
+  /**
+   * Send a gift card purchase email containing one or more redemption codes.
+   */
+  private async sendGiftCardPurchaseEmail(
+    giftCards: GiftCard[],
+  ): Promise<boolean> {
+    const recipientEmail = giftCards[0]?.email;
+    if (!recipientEmail) {
+      return false;
+    }
+
+    const codes = giftCards.map((card) => card.code);
+    const unitAmounts = await Promise.all(
+      giftCards.map((card) => this.resolveGiftCardUnitAmount(card)),
+    );
+    const quantity = giftCards.length;
+    const perCardAmount = unitAmounts[0] || "159";
+    const totalAmount = unitAmounts
+      .reduce((sum, amount) => sum + this.parseGiftCardAmount(amount), 0)
+      .toFixed(2);
+    const amountLabel =
+      quantity === 1
+        ? `£${perCardAmount}`
+        : `£${perCardAmount} each (£${totalAmount} total)`;
+    const codesHtml = this.buildGiftCardCodesHtml(codes);
+    const introLine =
+      quantity === 1
+        ? "Your gift card redemption code for 1 traveller is:"
+        : `Your ${quantity} gift card redemption codes (1 traveller each) are:`;
+
     try {
-      
-      console.log('📧 Sending Gift Card Email:');
-      console.log('   📧 To:', firstCard.email);
-      console.log('   🎫 Number of Codes:', giftCardsArray.length);
-      console.log('   🎫 Codes:', codes.join(', '));
-      console.log('   💰 Amount:', firstCard.amount);
-      
-      // Get email template from database
+      console.log("📧 Sending Gift Card Email:");
+      console.log("   📧 To:", recipientEmail);
+      console.log("   🎫 Codes:", codes.join(", "));
+      console.log("   💰 Amount:", amountLabel);
+
       let template = null;
       try {
         template = await EmailTemplate.findOne({
           where: { key: "gift_card_purchase", isActive: true },
         });
       } catch (findError) {
-        console.error('❌ Error querying gift_card_purchase template:', findError);
+        console.error("❌ Error querying gift_card_purchase template:", findError);
       }
 
-      // Check if template exists and its state
-      if (!template) {
-        console.warn("⚠️ Gift card email template not found. Sending fallback gift card email.");
-        const subject = "Your NUvisa Gift Card";
-        const codesHtml = codes
-          .map(
-            (code) =>
-              `<div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 12px 0; text-align: center;"><p style="margin:0;font-size:24px;font-weight:700;letter-spacing:1px;color:#000;font-family:'Courier New',monospace;">${code}</p></div>`
-          )
-          .join("");
-        const emailBody = `
-          <p>Hi,</p>
-          <p>Thank you for your gift card purchase with NUvisa.</p>
-          <p>Your gift card redemption code${codes.length > 1 ? "s" : ""}:</p>
-          ${codesHtml}
-          <p>Amount: £${firstCard.amount}</p>
-          <p>Redeem your gift card at <a href="https://www.nuvisa.co.uk">nuvisa.co.uk</a>.</p>
-          <p>Thank you!</p>
-        `;
+      let subject =
+        quantity === 1
+          ? "Your NUvisa Gift Card"
+          : `Your NUvisa Gift Cards (${quantity} codes)`;
+      let emailBody = `
+        <p>Hi,</p>
+        <p>Thank you for your gift card purchase with NUvisa.</p>
+        <p>${introLine}</p>
+        ${codesHtml}
+        <p>Amount: ${amountLabel}</p>
+        <p>Redeem your gift card${quantity === 1 ? "" : "s"} at <a href="https://www.nuvisa.co.uk">nuvisa.co.uk</a>.</p>
+        <p>Thank you!</p>
+      `;
 
-        const footerContent = await this.getEmailFooterContent();
-        await sendEmail(
-          {
-            emailAddress: firstCard.email,
-            subject,
-            body: emailBody,
-            excludeDecorativeImage: false,
-          },
-          footerContent
+      if (template) {
+        const dynamicData = {
+          code: codes.join(", "),
+          codes,
+          codesHtml,
+          amount: quantity === 1 ? perCardAmount : totalAmount,
+          quantity,
+          email: recipientEmail,
+        };
+
+        try {
+          const rendered = await renderTemplateFromDB(
+            "gift_card_purchase",
+            dynamicData,
+            template,
+          );
+          subject =
+            quantity === 1
+              ? rendered.subject
+              : rendered.subject.replace(
+                  /Redemption Code/i,
+                  `${quantity} Redemption Codes`,
+                );
+          emailBody = rendered.emailBody
+            .replace(/Your gift card redemption code is:/i, introLine)
+            .replace(
+              /Your gift card redemption code for 1 traveller is:/i,
+              introLine,
+            );
+
+          if (quantity > 1) {
+            emailBody = emailBody.replace(
+              /<p style="font-size: 32px[^>]*>[\s\S]*?<\/p>/i,
+              codesHtml,
+            );
+            emailBody = emailBody.replace(
+              /<strong>Purchase Amount:<\/strong> £[^<]+/i,
+              `<strong>Purchase Amount:</strong> ${amountLabel}`,
+            );
+            emailBody = emailBody.replace(
+              /This code can only be used once/i,
+              "Each code can only be used once",
+            );
+            emailBody = emailBody.replace(
+              /You can use this code during checkout/i,
+              "You can use these codes during checkout",
+            );
+          }
+
+          if (!codes.some((code) => emailBody.includes(code))) {
+            emailBody = emailBody.replace(
+              /(<p>Thank you for your gift card purchase!<\/p>)/i,
+              `$1<p>${introLine}</p>${codesHtml}`,
+            );
+          }
+        } catch (renderError) {
+          console.error("   ❌ Template rendering failed:", renderError?.message);
+        }
+      } else {
+        console.warn(
+          "⚠️ Gift card email template not found. Sending fallback gift card email.",
         );
-        return;
       }
 
-      // Prepare codes data - send all codes to the email template
-      const dynamicData = {
-        code: codes[0], // Primary code for backward compatibility
-        codes: codes, // All codes as an array
-        amount: firstCard.amount,
-        quantity: giftCardsArray.length,
-        email: firstCard.email,
-      };
-
-      console.log('   🔄 Rendering template with dynamic data:', {
-        code: codes[0],
-        codes_count: codes.length,
-        amount: firstCard.amount,
-      });
-
-      let subject, emailBody;
-      try {
-        const rendered = await renderTemplateFromDB(
-          "gift_card_purchase",
-          dynamicData,
-          template
-        );
-        subject = rendered.subject;
-        emailBody = rendered.emailBody;
-        console.log('   ✅ Template rendered successfully');
-      } catch (renderError) {
-        console.error('   ❌ Template rendering failed:', renderError?.message);
-        console.error('   Falling back to basic HTML email');
-        subject = "Your NUvisa Gift Card";
-        emailBody = `
-          <p>Hi,</p>
-          <p>Thank you for your gift card purchase with NUvisa.</p>
-          <p>Your gift card redemption code${codes.length > 1 ? "s" : ""}:</p>
-          ${codes
-            .map(
-              (code) =>
-                `<div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 12px 0; text-align: center;"><p style="margin:0;font-size:24px;font-weight:700;letter-spacing:1px;color:#000;font-family:'Courier New',monospace;">${code}</p></div>`
-            )
-            .join("")}
-          <p>Amount: £${firstCard.amount}</p>
-          <p>Redeem your gift card at <a href="https://www.nuvisa.co.uk">nuvisa.co.uk</a>.</p>
-          <p>Thank you!</p>
-        `;
-      }
-
-      // Ensure gift card artwork is embedded inline so email clients don't block it
       const giftCardImageCid = "gift-card-image";
-      
-      // Generate multiple gift card images (one for each code)
-      const giftCardImagesHtml = codes.map((code, index) => 
-        `<div style="text-align: center; margin: 24px 0 12px 0;">
-          <img src="cid:${giftCardImageCid}" alt="NUvisa gift card ${index + 1} of ${codes.length}" style="max-width: 100%; height: auto; border-radius: 12px; display: inline-block; box-shadow: 0 8px 20px rgba(0,0,0,0.08);">
-        </div>`
-      ).join('');
+      const giftCardImageHtml = `<div style="text-align: center; margin: 24px 0 12px 0;">
+          <img src="cid:${giftCardImageCid}" alt="NUvisa gift card" style="max-width: 100%; height: auto; border-radius: 12px; display: inline-block; box-shadow: 0 8px 20px rgba(0,0,0,0.08);">
+        </div>`;
 
       let finalEmailBody = emailBody;
-      
-      // Update the redemption text based on number of travellers
-      const travellerText = codes.length === 1 
-        ? `Your gift card redemption code for 1 traveller is:` 
-        : `Your gift card redemption codes for ${codes.length} travellers are:`;
-      
-      // Replace the redemption text in the email
-      finalEmailBody = finalEmailBody.replace(
-        /Your gift card redemption code is:/i,
-        travellerText
-      );
-      
-      // Replace single code with all codes if multiple gift cards
-      if (codes.length > 1) {
-        // Generate HTML for all codes (without "Gift Card X of Y" text)
-        const allCodesHtml = codes.map((code) => 
-          `<div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 12px 0; text-align: center;">
-            <p style="margin: 0; font-size: 32px; font-weight: bold; letter-spacing: 2px; color: #000; font-family: 'Courier New', monospace;">${code}</p>
-          </div>`
-        ).join('');
-        
-        // Find and replace the single code block with all codes
-        const singleCodeRegex = new RegExp(`<p[^>]*style="[^"]*font-size:\\s*32px[^"]*"[^>]*>${codes[0]}<\\/p>`, 'i');
-        if (singleCodeRegex.test(finalEmailBody)) {
-          finalEmailBody = finalEmailBody.replace(singleCodeRegex, allCodesHtml);
-        } else {
-          // Fallback: try to find the code anywhere in the body
-          const codeOnlyRegex = new RegExp(codes[0], 'g');
-          const firstOccurrence = finalEmailBody.indexOf(codes[0]);
-          if (firstOccurrence !== -1) {
-            // Replace first occurrence with all codes
-            finalEmailBody = finalEmailBody.substring(0, firstOccurrence) + 
-                           allCodesHtml + 
-                           finalEmailBody.substring(firstOccurrence + codes[0].length);
-          }
-        }
-      }
-      
       if (!finalEmailBody.includes(giftCardImageCid)) {
-        // Insert the images right after the code block(s)
-        const codeBlockRegex = /<div[^>]*style="[^"]*background:\s*#f5f5f5[^"]*"[^>]*>[\s\S]*?<\/div>/gi;
-        const codeBlocks = finalEmailBody.match(codeBlockRegex);
-        
-        if (codeBlocks && codeBlocks.length > 0) {
-          // Find the position after the last code block
-          const lastCodeBlock = codeBlocks[codeBlocks.length - 1];
-          const lastCodeBlockIndex = finalEmailBody.lastIndexOf(lastCodeBlock);
-          const insertPosition = lastCodeBlockIndex + lastCodeBlock.length;
-          
-          // Insert all images after the last code block
-          finalEmailBody = finalEmailBody.substring(0, insertPosition) + 
-                          giftCardImagesHtml + 
-                          finalEmailBody.substring(insertPosition);
-        } else {
-          // Fallback: try to find single code in paragraph tag
-          const singleCodeRegex = /<p[^>]*style="[^"]*font-size:\s*32px[^"]*"[^>]*>.*?<\/p>/i;
-          const match = finalEmailBody.match(singleCodeRegex);
-          
-          if (match) {
-            const codePosition = finalEmailBody.indexOf(match[0]);
-            const insertPosition = codePosition + match[0].length;
-            finalEmailBody = finalEmailBody.substring(0, insertPosition) + 
-                           giftCardImagesHtml + 
-                           finalEmailBody.substring(insertPosition);
-          } else {
-            // Last resort: append near the top
-            finalEmailBody = `${giftCardImagesHtml}${finalEmailBody}`;
-          }
-        }
+        finalEmailBody = `${giftCardImageHtml}${finalEmailBody}`;
       }
 
-      // Get footer content
       const footerContent = await this.getEmailFooterContent();
 
-      // Send email
-      console.log('   📤 Calling sendEmail service...');
-      console.log('   📧 Recipient:', firstCard.email);
-      console.log('   📝 Subject:', subject);
-      console.log('   📎 Inline images: 1 (gift-card.png)');
-      console.log('   📏 Email body length:', finalEmailBody?.length || 0, 'characters');
-      
       try {
-        // Always append a clear list of codes at the end of the email to guarantee visibility
-        const appendedCodesHtml = `
-          <div style="margin-top:16px;padding:12px;border-radius:8px;background:#f7f7fb;">
-            <h3 style="margin:0 0 8px 0;color:#333;font-family:Arial, sans-serif;">Your gift card code${codes.length>1? 's' : ''}:</h3>
-            ${codes.map(c=>`<div style=\"padding:8px 0;font-family:'Courier New',monospace;font-size:20px;color:#000;\">${c}</div>`).join('')}
-          </div>
-        `;
-
-        const bodyWithAppendedCodes = `${finalEmailBody}${appendedCodesHtml}`;
-
-        const result = await sendEmail(
+        await sendEmail(
           {
-            emailAddress: firstCard.email,
+            emailAddress: recipientEmail,
             subject,
-            body: bodyWithAppendedCodes,
+            body: finalEmailBody,
             excludeDecorativeImage: false,
             inlineImages: [
               {
@@ -340,40 +367,20 @@ export class GiftCardService {
               },
             ],
           },
-          footerContent
+          footerContent,
         );
-        
-        console.log('   ✅ Gift card email sent successfully!');
-        console.log('   📧 Message ID:', result?.messageId || 'N/A');
-        console.log('   📊 Response:', result?.response || 'N/A');
+        console.log("   ✅ Gift card email sent successfully!");
+        return true;
       } catch (emailSendError) {
-        console.error('   ❌ Email send failed!');
-        console.error('   Error message:', emailSendError?.message);
-        console.error('   Error code:', emailSendError?.code);
-        console.error('   Error details:', {
-          message: emailSendError?.message,
-          code: emailSendError?.code,
-          responseCode: emailSendError?.responseCode,
-          command: emailSendError?.command,
-        });
-        if (emailSendError?.stack) {
-          console.error('   Stack trace:', emailSendError.stack.substring(0, 500));
-        }
-        throw emailSendError;
+        console.error("   ❌ Email send failed!", emailSendError?.message);
+        return false;
       }
     } catch (error) {
       console.error("❌ Error sending gift card email:", error);
-      console.error("📧 Gift card email details:", {
-        recipient: firstCard.email,
-        codes: giftCardsArray.map(gc => gc.code),
-        quantity: giftCardsArray.length,
-        amount: firstCard.amount,
-        errorMessage: error.message,
-        errorCode: error.code,
-      });
-      // Don't throw error - gift card is already created, email failure shouldn't break the flow
+      return false;
     }
   }
+
 
   /**
    * Get email footer content (logo, social links, etc.)
@@ -469,6 +476,76 @@ export class GiftCardService {
     }
   }
 
+  private parseGiftCardAmount(amount: string | number): number {
+    const parsed = parseFloat(String(amount).replace(/[^\d.]/g, ""));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 159;
+  }
+
+  /**
+   * Returns the per-card amount. Legacy purchases stored the checkout total on every row.
+   */
+  private async resolveGiftCardUnitAmount(giftCard: GiftCard): Promise<string> {
+    const groupId = giftCard.purchase_group_id;
+    if (!groupId) {
+      return String(giftCard.amount);
+    }
+
+    const siblings = await this.giftCardModel.findAll({
+      where: { purchase_group_id: groupId },
+    });
+    if (siblings.length <= 1) {
+      return String(giftCard.amount);
+    }
+
+    const stored = this.parseGiftCardAmount(giftCard.amount);
+    const allSameAmount = siblings.every(
+      (s) => String(s.amount) === String(giftCard.amount),
+    );
+    const expectedTotal = stored * siblings.length;
+    const looksLikeTotalOnEach =
+      allSameAmount && stored >= expectedTotal * 0.99;
+
+    if (looksLikeTotalOnEach) {
+      return (stored / siblings.length).toFixed(2);
+    }
+
+    return String(giftCard.amount);
+  }
+
+  private getGiftCardApplicationError(params: {
+    giftCardAmount: number;
+    packagePrice?: number;
+    travelerCount?: number;
+    appliedGiftCardCount?: number;
+  }): string | null {
+    const { giftCardAmount, packagePrice, travelerCount, appliedGiftCardCount = 0 } =
+      params;
+
+    if (packagePrice === undefined || travelerCount === undefined) {
+      return null;
+    }
+
+    const travelers = Math.max(0, Math.floor(Number(travelerCount) || 0));
+    if (travelers < 1) {
+      return "Add at least one traveller to apply a gift card.";
+    }
+
+    const applied = Math.max(0, Math.floor(Number(appliedGiftCardCount) || 0));
+    const nextCount = applied + 1;
+
+    if (nextCount > travelers) {
+      return `You can apply at most ${travelers} gift card${travelers === 1 ? "" : "s"} for ${travelers} traveller${travelers === 1 ? "" : "s"}.`;
+    }
+
+    const requiredTotal = giftCardAmount * nextCount;
+    const packageTotal = Number(packagePrice) || 0;
+    if (packageTotal < requiredTotal) {
+      return `Your package total must be at least £${requiredTotal.toFixed(2)} to apply ${nextCount} gift card${nextCount === 1 ? "" : "s"} (£${giftCardAmount.toFixed(2)} each). Your current package total is £${packageTotal.toFixed(2)}.`;
+    }
+
+    return null;
+  }
+
   /**
    * Validate a gift card code
    */
@@ -492,18 +569,36 @@ export class GiftCardService {
         };
       }
 
-      const quantity = giftCard.quantity || 1;
+      const cardAmount = this.parseGiftCardAmount(
+        await this.resolveGiftCardUnitAmount(giftCard),
+      );
+      const eligibilityError = this.getGiftCardApplicationError({
+        giftCardAmount: cardAmount,
+        packagePrice: dto.packagePrice,
+        travelerCount: dto.travelerCount,
+        appliedGiftCardCount: dto.appliedGiftCardCount,
+      });
+
+      if (eligibilityError) {
+        return {
+          valid: false,
+          message: eligibilityError,
+        };
+      }
+
+      const unitAmount = await this.resolveGiftCardUnitAmount(giftCard);
+
       return {
         valid: true,
         message: "Gift card is valid",
         giftCard: {
           code: giftCard.code,
-          amount: giftCard.amount,
-          quantity,
+          amount: unitAmount,
+          quantity: 1,
         },
         benefits: {
-          freeTraveler: quantity,
-          freeInsurance: quantity,
+          freeTraveler: 1,
+          freeInsurance: 1,
         },
       };
     } catch (error) {
@@ -530,6 +625,20 @@ export class GiftCardService {
 
       if (giftCard.is_used) {
         callHTTPException("This gift card has already been used");
+      }
+
+      const cardAmount = this.parseGiftCardAmount(
+        await this.resolveGiftCardUnitAmount(giftCard),
+      );
+      const eligibilityError = this.getGiftCardApplicationError({
+        giftCardAmount: cardAmount,
+        packagePrice: dto.packagePrice,
+        travelerCount: dto.travelerCount,
+        appliedGiftCardCount: dto.appliedGiftCardCount,
+      });
+
+      if (eligibilityError) {
+        callHTTPException(eligibilityError);
       }
 
       // Mark as used
@@ -566,8 +675,8 @@ export class GiftCardService {
           quantity: giftCard.quantity || 1,
         },
         benefits: {
-          freeTraveler: giftCard.quantity || 1,
-          freeInsurance: giftCard.quantity || 1,
+          freeTraveler: 1,
+          freeInsurance: 1,
         },
       };
     } catch (error) {
