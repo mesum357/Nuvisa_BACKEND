@@ -73,6 +73,9 @@ async function bootstrap() {
   if (!allowedOrigins.includes('https://nuvisa-admin.vercel.app')) {
     allowedOrigins.push('https://nuvisa-admin.vercel.app');
   }
+  if (!allowedOrigins.includes('https://nuvisa-frontend.onrender.com')) {
+    allowedOrigins.push('https://nuvisa-frontend.onrender.com');
+  }
   
   app.enableCors({
     origin: allowedOrigins,

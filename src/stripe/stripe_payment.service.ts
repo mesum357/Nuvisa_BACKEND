@@ -430,9 +430,16 @@ export class StripeService {
         );
       }
 
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amountInCents,
+        currency: currency,
+        payment_method_types: ["card"],
+        metadata: metadataForStripeCheckoutSession(checkoutData),
+        receipt_email: email,
+      });
+
       let authResponse = {};
 
-      // Handle comma-separated payment types (e.g., "application_creation,gift_card")
       const paymentTypes = paymentType ? paymentType.split(',').map(t => t.trim()) : [];
       const hasApplicationCreation = !paymentType || paymentTypes.includes("application_creation");
       
@@ -448,14 +455,6 @@ export class StripeService {
           message: "Using existing session for insurance payment",
         };
       }
-
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amountInCents,
-        currency: currency,
-        payment_method_types: ["card"],
-        metadata: metadataForStripeCheckoutSession(checkoutData),
-        receipt_email: email,
-      });
 
       return {
         clientSecret: paymentIntent.client_secret,
