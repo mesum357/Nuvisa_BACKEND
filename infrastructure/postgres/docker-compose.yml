@@ -1,0 +1,44 @@
+# NUvisa PostgreSQL on VPS (Docker)
+# Usage (on VPS):
+#   cp .env.example .env   # set POSTGRES_PASSWORD
+#   docker compose up -d
+#
+# Apps on the same host (PM2) connect via 127.0.0.1:5432
+# Apps in a future compose stack connect via hostname "postgres"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nuvisa-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nuvisa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-nuvisa}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      # Bind to localhost only — not exposed on the public internet
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - nuvisa_pg_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-nuvisa} -d ${POSTGRES_DB:-nuvisa}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  nuvisa_pg_data:
