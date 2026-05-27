@@ -664,15 +664,22 @@ export class StripeService {
         console.log("[checkout] insurance_only path", { email, orderId, paymentAmount });
 
         if (email && Number.isFinite(paymentAmount) && paymentAmount > 0) {
-          try {
-            await this.adminService.sendInsurancePurchaseConfirmation({
-              email,
-              amount: paymentAmount,
-              orderId: String(orderId),
-            });
-            console.log("[checkout] insurance_only email sent", { email });
-          } catch (emailErr) {
-            console.error("[checkout] insurance_only email failed", emailErr);
+          const skipEmail =
+            metadata.skipConfirmationEmail === "true" ||
+            metadata.confirmationEmailSent === "true";
+          if (!skipEmail) {
+            try {
+              await this.adminService.sendInsurancePurchaseConfirmation({
+                email,
+                amount: paymentAmount,
+                orderId: String(orderId),
+              });
+              console.log("[checkout] insurance_only email sent", { email });
+            } catch (emailErr) {
+              console.error("[checkout] insurance_only email failed", emailErr);
+            }
+          } else {
+            console.log("[checkout] insurance_only email skipped (already sent)");
           }
         } else {
           console.warn("[checkout] insurance_only missing email or amount", { email, paymentAmount });
@@ -870,7 +877,10 @@ export class StripeService {
           console.log("🛡️  STANDALONE INSURANCE DETECTED (no applicationId)");
           if (!applicationIdValid) {
             console.log("✅ Standalone insurance: NO applicationId provided (as expected)");
-            if (emailValid && paymentAmountValid) {
+            const skipEmail =
+              metadata.skipConfirmationEmail === "true" ||
+              metadata.confirmationEmailSent === "true";
+            if (emailValid && paymentAmountValid && !skipEmail) {
               try {
                 console.log("📧 Sending standalone insurance confirmation to:", email);
                 await this.adminService.sendInsurancePurchaseConfirmation({

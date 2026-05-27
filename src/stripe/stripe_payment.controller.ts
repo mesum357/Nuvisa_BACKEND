@@ -179,6 +179,14 @@ export class StripeController {
       const mockPaymentData = {
         metadata: {
           paymentType: body.paymentType || "traveler_insurance",
+          checkoutType: body.checkoutType || "insurance_only",
+          insuranceOnly:
+            body.insuranceOnly === true || body.insuranceOnly === "true"
+              ? "true"
+              : body.checkoutType === "insurance_only"
+                ? "true"
+                : undefined,
+          skipConfirmationEmail: body.skipConfirmationEmail ? "true" : undefined,
           travelerIndex: body.travelerIndex,
           applicationId: body.applicationId,
           email: derivedEmail || body.email,
@@ -191,15 +199,23 @@ export class StripeController {
       const result =
         await this.stripeService.handlePaymentSuccess(mockPaymentData);
 
-      try {
-        await this.adminService.sendInsurancePurchaseConfirmation({
-          email: derivedEmail || body.email,
-          amount: derivedAmount || body.amount,
-          applicationId: body.applicationId,
-          orderId: mockOrderId,
-        });
-      } catch (emailErr) {
-        console.error("Insurance confirmation email failed:", emailErr);
+      const isStandaloneInsurance =
+        !body.applicationId &&
+        String(body.paymentType || "")
+          .toLowerCase()
+          .includes("insurance");
+
+      if (!body.skipConfirmationEmail && !isStandaloneInsurance) {
+        try {
+          await this.adminService.sendInsurancePurchaseConfirmation({
+            email: derivedEmail || body.email,
+            amount: derivedAmount || body.amount,
+            applicationId: body.applicationId,
+            orderId: mockOrderId,
+          });
+        } catch (emailErr) {
+          console.error("Insurance confirmation email failed:", emailErr);
+        }
       }
 
       return GetObjectTemplateForAPIResponseGeneral(
