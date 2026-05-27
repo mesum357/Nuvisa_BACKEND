@@ -615,7 +615,7 @@ export class AdminService {
       try {
         const message = getApplicationStatusEmailMessage(
           updateDto.status,
-          updateDto.statusMessage || statusDisplay,
+          updateDto.statusMessage,
         );
         const emailStatusLabel = getApplicationStatusEmailLabel(
           updateDto.status,

@@ -7,7 +7,7 @@ export const APPLICATION_STATUS_EMAIL_MESSAGES: Record<string, string> = {
   under_review: 'Documents are being reviewed by our team',
   appointment_booked: 'Visa appointment has been successfully scheduled',
   at_embassy: 'Application is currently at the embassy',
-  decision_made: 'Decision made, passport dispatched/ready',
+  decision_made: 'A final decision has been made on your application',
   approved: 'Congratulations! Your visa application has been approved.',
   rejected:
     'Unfortunately, your visa application has been rejected. Please contact us for more information.',
@@ -53,7 +53,7 @@ export function getApplicationStatusEmailLabel(
     under_review: 'Under review',
     appointment_booked: 'Appointment booked',
     at_embassy: 'At Embassy',
-    decision_made: 'Decision Made',
+    decision_made: 'Decision made, passport dispatched/ready',
     approved: 'Approved',
     rejected: 'Rejected',
     payment_required: 'Payment required',

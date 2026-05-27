@@ -34,6 +34,12 @@ export class RedeemGiftCardDto {
   @IsNumber()
   @Min(0)
   appliedGiftCardCount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  appliedGiftCardsTotal?: number;
 }
 
 export class ValidateGiftCardDto {
@@ -58,6 +64,12 @@ export class ValidateGiftCardDto {
   @IsNumber()
   @Min(0)
   appliedGiftCardCount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  appliedGiftCardsTotal?: number;
 }
 
 export class FulfillGiftCardDto {

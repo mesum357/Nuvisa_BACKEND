@@ -517,9 +517,15 @@ export class GiftCardService {
     packagePrice?: number;
     travelerCount?: number;
     appliedGiftCardCount?: number;
+    appliedGiftCardsTotal?: number;
   }): string | null {
-    const { giftCardAmount, packagePrice, travelerCount, appliedGiftCardCount = 0 } =
-      params;
+    const {
+      giftCardAmount,
+      packagePrice,
+      travelerCount,
+      appliedGiftCardCount = 0,
+      appliedGiftCardsTotal = 0,
+    } = params;
 
     if (packagePrice === undefined || travelerCount === undefined) {
       return null;
@@ -537,10 +543,15 @@ export class GiftCardService {
       return `You can apply at most ${travelers} gift card${travelers === 1 ? "" : "s"} for ${travelers} traveller${travelers === 1 ? "" : "s"}.`;
     }
 
-    const requiredTotal = giftCardAmount * nextCount;
+    const alreadyAppliedTotal = Math.max(0, Number(appliedGiftCardsTotal) || 0);
+    const requiredTotal = alreadyAppliedTotal + giftCardAmount;
     const packageTotal = Number(packagePrice) || 0;
     if (packageTotal < requiredTotal) {
-      return `Your package total must be at least £${requiredTotal.toFixed(2)} to apply ${nextCount} gift card${nextCount === 1 ? "" : "s"} (£${giftCardAmount.toFixed(2)} each). Your current package total is £${packageTotal.toFixed(2)}.`;
+      const remaining = Math.max(0, packageTotal - alreadyAppliedTotal);
+      if (alreadyAppliedTotal > 0) {
+        return `Your remaining package balance (£${remaining.toFixed(2)}) is not enough to apply this gift card (£${giftCardAmount.toFixed(2)}).`;
+      }
+      return `Your package total must be at least £${giftCardAmount.toFixed(2)} to apply this gift card. Your current package total is £${packageTotal.toFixed(2)}.`;
     }
 
     return null;
@@ -635,11 +646,14 @@ export class GiftCardService {
         packagePrice: dto.packagePrice,
         travelerCount: dto.travelerCount,
         appliedGiftCardCount: dto.appliedGiftCardCount,
+        appliedGiftCardsTotal: dto.appliedGiftCardsTotal,
       });
 
       if (eligibilityError) {
         callHTTPException(eligibilityError);
       }
+
+      const unitAmount = await this.resolveGiftCardUnitAmount(giftCard);
 
       // Mark as used
       await giftCard.update({
@@ -671,7 +685,7 @@ export class GiftCardService {
         message: "Gift card redeemed successfully",
         giftCard: {
           code: giftCard.code,
-          amount: giftCard.amount,
+          amount: unitAmount,
           quantity: giftCard.quantity || 1,
         },
         benefits: {
