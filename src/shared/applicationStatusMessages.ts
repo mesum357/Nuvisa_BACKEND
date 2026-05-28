@@ -24,39 +24,27 @@ export function normalizeApplicationStatusKey(status?: string): string {
     .replace(/[\s-]+/g, '_');
 }
 
-export function getApplicationStatusEmailMessage(
-  status?: string,
-  statusMessage?: string | null,
-): string {
-  if (statusMessage && String(statusMessage).trim()) {
-    return String(statusMessage).trim();
-  }
-
+export function getApplicationStatusEmailMessage(status?: string): string {
   const key = normalizeApplicationStatusKey(status);
   return (
     APPLICATION_STATUS_EMAIL_MESSAGES[key] ||
-    `Your application status has been updated to: ${String(status || '').replace(/_/g, ' ')}`
+    'Your application status has been updated.'
   );
 }
 
-export function getApplicationStatusEmailLabel(
-  status?: string,
-  statusDisplay?: string | null,
-): string {
-  if (statusDisplay && String(statusDisplay).trim()) {
-    return String(statusDisplay).trim();
-  }
-
+export function getApplicationStatusEmailLabel(status?: string): string {
   const key = normalizeApplicationStatusKey(status);
   const labels: Record<string, string> = {
-    submitted: 'Application submitted',
-    under_review: 'Under review',
+    submitted: 'Application Submitted',
+    under_review: 'Under Review',
     appointment_booked: 'Appointment booked',
     at_embassy: 'At Embassy',
     decision_made: 'Decision made, passport dispatched/ready',
-    approved: 'Approved',
-    rejected: 'Rejected',
+    approved: 'Decision made, passport dispatched/ready',
+    rejected: 'Decision made, passport dispatched/ready',
     payment_required: 'Payment required',
+    processing: 'Under Review',
+    pending: 'Application Submitted',
   };
 
   return (

@@ -19,6 +19,11 @@ import {
   getApplicationStatusEmailMessage,
   getApplicationStatusEmailLabel,
 } from '../shared/applicationStatusMessages';
+import { getPassportStatusEmailCopy } from '../shared/passportStatusMessages';
+import {
+  buildStatusUpdateEmailHtml,
+  STATUS_UPDATE_EMAIL_SUBJECT,
+} from '../shared/statusUpdateEmail';
 
 @Injectable()
 export class AdminService {
@@ -613,113 +618,46 @@ export class AdminService {
       }
 
       try {
-        const message = getApplicationStatusEmailMessage(
-          updateDto.status,
-          updateDto.statusMessage,
-        );
-        const emailStatusLabel = getApplicationStatusEmailLabel(
-          updateDto.status,
-          statusDisplay,
-        );
-        
-        // Try to use database template
-        try {
-          const template = await this.emailTemplateModel.findOne({
-            where: { key: 'status_update', isActive: true }
-          });
+        const passportCopy = getPassportStatusEmailCopy(adminStatusKey);
+        const emailStatusLabel = passportCopy
+          ? passportCopy.label
+          : getApplicationStatusEmailLabel(updateDto.status);
+        const message = passportCopy
+          ? passportCopy.message
+          : getApplicationStatusEmailMessage(updateDto.status);
 
-          if (template) {
-            // Extract user name from travelersData if available
-            let userName = 'Applicant';
-            try {
-              if (application.travelersData && typeof application.travelersData === 'object') {
-                const travelers = application.travelersData;
-                if (Array.isArray(travelers) && travelers.length > 0) {
-                  const firstTraveler = travelers[0];
-                  userName = (firstTraveler.firstName && firstTraveler.lastName) 
-                    ? `${firstTraveler.firstName} ${firstTraveler.lastName}`
-                    : firstTraveler.firstName || firstTraveler.lastName || 'Applicant';
-                }
-              }
-            } catch (err) {
-              // Keep default userName if extraction fails
-            }
+        const applicationNo =
+          (application as any).formattedApplicationId ||
+          (application as any).applicationNo ||
+          (application as any).code ||
+          String(application.id).slice(0, 8);
 
-            const { subject: emailSubject, emailBody } = await renderTemplateFromDB(
-              'status_update',
-              {
-                userName: userName,
-                status: emailStatusLabel,
-                oldStatus: updateDto.oldStatus || oldStatus || 'Unknown',
-                message: message,
-                notes: updateDto.notes || '',
-              },
-              template
-            );
-            
-            const footerContent = await this.getEmailFooterContent();
-            
-            await this.sendEmailAndLog(
-              {
-                emailAddress: application.email,
-                subject: emailSubject,
-                body: emailBody,
-                templateKey: 'status_update',
-                templateName: template.name,
-                templateVariables: {
-                  userName: userName,
-                  status: emailStatusLabel,
-                  oldStatus: updateDto.oldStatus || oldStatus || 'Unknown',
-                  message: message,
-                  notes: updateDto.notes || '',
-                },
-                applicationId: application.id,
-                recipientName: userName,
-              },
-              footerContent
-            );
-          } else {
-            // Fallback to hardcoded template
-            const footerContent = await this.getEmailFooterContent();
-            await this.sendEmailAndLog(
-              {
-                emailAddress: application.email,
-                subject: `Visa Application Status Update - ${emailStatusLabel}`,
-                body: `
-                  <p>Dear Applicant,</p>
-                  <p>Your visa application status has been updated:</p>
-                  <p><strong>Previous Status:</strong> ${updateDto.oldStatus || oldStatus || 'Unknown'}</p>
-                  <p><strong>New Status:</strong> ${emailStatusLabel}</p>
-                  <p><strong>Message:</strong> ${message}</p>
-                  ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
-                `,
-                templateKey: 'status_update',
-                applicationId: application.id,
-              },
-              footerContent
-            );
-          }
-        } catch (templateError) {
-          // Fallback to hardcoded email
-          const footerContent = await this.getEmailFooterContent();
-          await this.sendEmailAndLog(
-            {
-              emailAddress: application.email,
-              subject: `Visa Application Status Update - ${emailStatusLabel}`,
-              body: `
-                <p>Dear Applicant,</p>
-                <p>Your visa application status has been updated:</p>
-                <p><strong>Previous Status:</strong> ${updateDto.oldStatus || oldStatus || 'Unknown'}</p>
-                <p><strong>New Status:</strong> ${emailStatusLabel}</p>
-                <p><strong>Message:</strong> ${message}</p>
-                ${updateDto.notes ? `<p><strong>Additional Notes:</strong> ${updateDto.notes}</p>` : ''}
-              `,
-              templateKey: 'status_update',
-              applicationId: application.id,
+        const emailSubject = STATUS_UPDATE_EMAIL_SUBJECT(applicationNo);
+        const emailBody = buildStatusUpdateEmailHtml(
+          emailStatusLabel,
+          message,
+          updateDto.notes,
+        );
+        const footerContent = await this.getEmailFooterContent();
+
+        await this.sendEmailAndLog(
+          {
+            emailAddress: application.email,
+            subject: emailSubject,
+            body: emailBody,
+            templateKey: 'status_update',
+            templateName: 'Application Status Update',
+            templateVariables: {
+              status: emailStatusLabel,
+              message,
+              notes: updateDto.notes || '',
+              applicationNo,
             },
-            footerContent
-          );
-        }
+            applicationId: application.id,
+            recipientName: 'Applicant',
+          },
+          footerContent,
+        );
         
         console.log('[status-update] email sent', {
           to: application.email,
@@ -1875,8 +1813,8 @@ export class AdminService {
         {
           key: 'status_update',
           name: 'Application Status Update',
-          subject: 'Visa Application Status Update - ${status}',
-          body: '<p>Hi ${userName},</p><p>Your visa application status has been updated:</p><p><strong>Previous Status:</strong> ${oldStatus || "Unknown"}</p><p><strong>New Status:</strong> ${status}</p><p><strong>Message:</strong> ${message}</p>${notes ? `<p><strong>Additional Notes:</strong> ${notes}</p>` : ""}',
+          subject: 'Application ${applicationNo} Status Update',
+          body: '<p>Hi Applicant,</p><p>Your visa application status has been updated:</p><p><strong>New Status:</strong> ${status}</p><p><strong>Message:</strong> ${message}</p>${notes ? `<p><strong>Note:</strong> ${notes}</p>` : ""}',
           description: 'Email template for application status updates',
           isActive: true,
         },

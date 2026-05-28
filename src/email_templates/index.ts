@@ -1,14 +1,13 @@
 export const emailTemplates = [
   {
     key: "status_update",
-    subject: "Visa Application Status Update - ${status}",
+    subject: "Application ${applicationNo} Status Update",
     email_body: 
-      "<p>Dear Applicant,</p>" +
+      "<p>Hi Applicant,</p>" +
       "<p>Your visa application status has been updated:</p>" +
-      "<p><strong>Previous Status:</strong> ${oldStatus || 'Unknown'}</p>" +
       "<p><strong>New Status:</strong> ${status}</p>" +
       "<p><strong>Message:</strong> ${message}</p>" +
-      "${notes ? `<p><strong>Additional Notes:</strong> ${notes}</p>` : ''}"
+      "${notes ? `<p><strong>Note:</strong> ${notes}</p>` : ''}"
   },
   {
     key: "application_submitted",

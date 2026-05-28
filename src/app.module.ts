@@ -317,8 +317,8 @@ export class AppModule implements OnModuleInit {
         {
           key: 'status_update',
           name: 'Application Status Update',
-          subject: 'Visa Application Status Update - ${status}',
-          body: '<p>Hi ${userName},</p><p>Your visa application status has been updated:</p><p><strong>Previous Status:</strong> ${oldStatus || "Unknown"}</p><p><strong>New Status:</strong> ${status}</p><p><strong>Message:</strong> ${message}</p>${notes ? `<p><strong>Additional Notes:</strong> ${notes}</p>` : ""}',
+          subject: 'Application ${applicationNo} Status Update',
+          body: '<p>Hi Applicant,</p><p>Your visa application status has been updated:</p><p><strong>New Status:</strong> ${status}</p><p><strong>Message:</strong> ${message}</p>${notes ? `<p><strong>Note:</strong> ${notes}</p>` : ""}',
           description: 'Email template for application status updates',
           isActive: true,
         },
