@@ -195,4 +195,9 @@ export class checkoutSessionDto {
   @IsOptional()
   @IsString()
   zip?: string;
+
+  /** "true" when checkout included the WhatsApp accountability expert add-on */
+  @IsOptional()
+  @IsString()
+  expertCoachSelected?: string;
 }
