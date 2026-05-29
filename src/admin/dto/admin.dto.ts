@@ -58,6 +58,15 @@ export class SearchApplicationsDto {
   @IsOptional()
   @IsString()
   limit?: string;
+
+  /** Filter to applications assigned to this admin email (sub-admin list view). */
+  @IsOptional()
+  @IsString()
+  assignedAdminEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  assignedAdminId?: string;
 }
 
 export class UpdateApplicationStatusDto {

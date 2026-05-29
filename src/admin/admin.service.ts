@@ -334,10 +334,12 @@ export class AdminService {
         sortBy = 'createdAt',
         sortOrder = 'DESC',
         page = '1',
-        limit = '50'
+        limit = '50',
+        assignedAdminEmail,
+        assignedAdminId,
       } = searchDto;
 
-      const whereConditions: any = {};
+      const andParts: any[] = [];
 
       // Text search
       if (query && query.trim()) {
@@ -345,35 +347,36 @@ export class AdminService {
         const likeQuery = `%${searchQuery}%`;
         const idIlike = where(cast(col('id'), 'TEXT'), { [Op.iLike]: likeQuery });
         const orderIdIlike = where(cast(col('orderId'), 'TEXT'), { [Op.iLike]: likeQuery });
-        
+
         switch (type) {
           case SearchType.APPLICATION_ID:
-            whereConditions[Op.or] = [
-              idIlike,
-              orderIdIlike,
-            ];
+            andParts.push({
+              [Op.or]: [idIlike, orderIdIlike],
+            });
             break;
           case SearchType.ORDER_ID:
-            whereConditions[Op.and] = [orderIdIlike];
+            andParts.push(orderIdIlike);
             break;
           default: // ALL
-            whereConditions[Op.or] = [
-              idIlike,
-              orderIdIlike,
-              { country: { [Op.iLike]: likeQuery } },
-              { email: { [Op.iLike]: likeQuery } },
-            ];
+            andParts.push({
+              [Op.or]: [
+                idIlike,
+                orderIdIlike,
+                { country: { [Op.iLike]: likeQuery } },
+                { email: { [Op.iLike]: likeQuery } },
+              ],
+            });
         }
       }
 
       // Status filter
       if (status) {
-        whereConditions.applicationStatus = status;
+        andParts.push({ applicationStatus: status });
       }
 
       // Country filter
       if (country) {
-        whereConditions.country = { [Op.iLike]: `%${country}%` };
+        andParts.push({ country: { [Op.iLike]: `%${country}%` } });
       }
 
       // Date range filter
@@ -385,8 +388,36 @@ export class AdminService {
         if (dateTo) {
           dateFilter[Op.lte] = new Date(dateTo + 'T23:59:59.999Z');
         }
-        whereConditions.createdAt = dateFilter;
+        andParts.push({ createdAt: dateFilter });
       }
+
+      if (assignedAdminId?.trim() && assignedAdminEmail?.trim()) {
+        andParts.push({
+          [Op.or]: [
+            { assignedAdminId: assignedAdminId.trim() },
+            {
+              assignedAdminEmail: {
+                [Op.iLike]: assignedAdminEmail.trim(),
+              },
+            },
+          ],
+        });
+      } else if (assignedAdminId?.trim()) {
+        andParts.push({ assignedAdminId: assignedAdminId.trim() });
+      } else if (assignedAdminEmail?.trim()) {
+        andParts.push({
+          assignedAdminEmail: {
+            [Op.iLike]: assignedAdminEmail.trim(),
+          },
+        });
+      }
+
+      const whereConditions =
+        andParts.length === 0
+          ? {}
+          : andParts.length === 1
+            ? andParts[0]
+            : { [Op.and]: andParts };
 
       // Pagination
       const pageNum = parseInt(page, 10);
@@ -412,6 +443,9 @@ export class AdminService {
           'currentStep',
           'completedSteps',
           'stepProgress',
+          'assignedAdminId',
+          'assignedAdminEmail',
+          'assignedAdminName',
           'createdAt',
           'updatedAt'
         ]
